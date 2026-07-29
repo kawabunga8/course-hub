@@ -219,13 +219,14 @@ export default function StudentsClient() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return students.filter(s => {
+      if (derivedGrade(s.grade_year, s.grade_year_reference, selectedYear) === null) return false;
       if (filterGrade !== 'all' && derivedGrade(s.grade_year, s.grade_year_reference, selectedYear) !== filterGrade) return false;
       if (!q) return true;
       return s.first_name.toLowerCase().includes(q) ||
         s.last_name.toLowerCase().includes(q) ||
         (s.student_number ?? '').toLowerCase().includes(q);
     });
-  }, [students, search, filterGrade]);
+  }, [students, search, filterGrade, selectedYear]);
 
   const selectedStudent = useMemo(() => students.find(s => s.id === selectedId) ?? null, [students, selectedId]);
 
