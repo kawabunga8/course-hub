@@ -8,10 +8,11 @@ const navBtn = { padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(2
 const navBtnActive = { ...navBtn, border: `1px solid ${RCS.gold}`, background: RCS.gold, color: RCS.deepNavy, fontWeight: 900 } as const;
 const navBtnOutline = { padding: '8px 14px', borderRadius: 8, border: `1px solid ${RCS.gold}`, background: 'transparent', color: RCS.gold, fontWeight: 900, fontSize: 13, cursor: 'pointer' } as const;
 
-type Page = 'students' | 'courses' | 'standards' | 'quarters';
+type Page = 'students' | 'courses' | 'standards' | 'quarters' | 'photos';
 
 const LINKS: { page: Page; href: string; label: string }[] = [
   { page: 'students', href: '/students', label: 'Students' },
+  { page: 'photos', href: '/students/photos', label: 'Photos' },
   { page: 'courses', href: '/courses', label: 'Courses' },
   { page: 'standards', href: '/standards', label: 'Learning Standards' },
   { page: 'quarters', href: '/quarters', label: 'School Quarters' },
