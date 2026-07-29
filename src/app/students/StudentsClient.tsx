@@ -680,7 +680,6 @@ export default function StudentsClient() {
                             </div>
                           </div>
                         </div>
-                        <button onClick={e => { e.stopPropagation(); void deleteStudent(s.id, `${s.first_name} ${s.last_name}`); }} style={S.dangerSm}>Delete</button>
                       </div>
                     );
                   })}
@@ -771,11 +770,14 @@ export default function StudentsClient() {
                   </div>
 
                   {editError && <div style={{ ...S.errorBox, marginTop: 10 }}>{editError}</div>}
-                  <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <button onClick={saveEdit} disabled={editStatus === 'working'} style={S.primaryBtn}>
-                      {editStatus === 'working' ? 'Saving…' : 'Save Changes'}
-                    </button>
-                    {editStatus === 'saved' && <span style={{ color: '#14532d', fontWeight: 800, fontSize: 13 }}>✓ Saved</span>}
+                  <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <button onClick={saveEdit} disabled={editStatus === 'working'} style={S.primaryBtn}>
+                        {editStatus === 'working' ? 'Saving…' : 'Save Changes'}
+                      </button>
+                      {editStatus === 'saved' && <span style={{ color: '#14532d', fontWeight: 800, fontSize: 13 }}>✓ Saved</span>}
+                    </div>
+                    <button onClick={() => void deleteStudent(selectedStudent.id, `${selectedStudent.first_name} ${selectedStudent.last_name}`)} style={S.dangerSm}>Delete</button>
                   </div>
                   <div style={{ marginTop: 8, fontSize: 12, color: RCS.midBlue, opacity: 0.8 }}>
                     Changes are visible in TOC-Dayplans, RCS Report Card Tool, Kawahoot, and Group Maker immediately.
