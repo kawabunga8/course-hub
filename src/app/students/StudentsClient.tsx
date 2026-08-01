@@ -20,7 +20,8 @@ type Student = {
 };
 
 type ClassRow = { id: string; name: string; block_label: string | null; sort_order: number | null };
-type EnrollmentRow = { class_id: string; school_year: string | null };
+type CourseRow = { id: string; name: string; block: string | null; school_year: string | null; grade_years: number[] | null };
+type EnrollmentRow = { class_id: string; course_id: string; school_year: string | null };
 type NoteRow = { id: string; note: string; created_at: string; updated_at: string };
 type MarkRow = { id: string; subject: string; mark: string; quarter: number | null; class_id: string | null; note: string | null; created_at: string };
 
@@ -34,12 +35,12 @@ function currentSchoolYear(): string {
   return `${startYear}-${String(startYear + 1).slice(2)}`;
 }
 
-function derivedGrade(gradeYear: number | null, reference: string | null, selectedYear: string): number | null {
-  if (!gradeYear || !reference) return gradeYear;
-  const refStart = parseInt(reference.split('-')[0]!);
-  const selStart = parseInt(selectedYear.split('-')[0]!);
-  const grade = gradeYear + (selStart - refStart);
-  return grade >= 9 && grade <= 12 ? grade : null;
+// Grade is whatever is set here in Student Hub — this app owns it. It is stored as
+// the student's actual current grade, not extrapolated from a reference year.
+// (Extrapolating produced impossible values like "Grade 13" and silently hid those
+// students from the directory.)
+function studentGrade(gradeYear: number | null): number | null {
+  return gradeYear ?? null;
 }
 
 const KNOWN_YEARS = ['2025-26', '2026-27'];
@@ -77,7 +78,8 @@ export default function StudentsClient() {
   const [view, setView] = useState<'all' | 'grade' | 'block' | 'gender'>('all');
 
   // ── Directory-wide data (for thumbnails + "By Block" grouping) ────────────
-  const [allEnrollments, setAllEnrollments] = useState<{ student_id: string; class_id: string; school_year: string | null }[]>([]);
+  const [allEnrollments, setAllEnrollments] = useState<{ student_id: string; class_id: string; course_id: string; school_year: string | null }[]>([]);
+  const [courses, setCourses] = useState<CourseRow[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
 
   // ── Selected student ───────────────────────────────────────────────────────
@@ -135,19 +137,25 @@ export default function StudentsClient() {
     setLoadStatus('loading'); setLoadError(null);
     try {
       const sb = getSupabaseClient();
-      const [sr, cr, er] = await Promise.all([
+      const [sr, cr, cor, er] = await Promise.all([
         sb.from('students').select('id,first_name,last_name,photo_url,grade_year,grade_year_reference,gender,student_number,school_year,email')
           .order('last_name').order('first_name'),
         sb.from('classes').select('id,name,block_label,sort_order')
           .order('sort_order', { ascending: true, nullsFirst: false }),
-        sb.from('enrollments').select('student_id,class_id,school_year'),
+        // Enrolment is per COURSE, not per class: one class can hold several courses
+        // (Band 10-12 covers Band 10, 11 and 12) and a student may take a course below
+        // their grade, so the course has to be chosen explicitly.
+        sb.from('courses').select('id,name,block,school_year,grade_years').order('block'),
+        sb.from('enrollments').select('student_id,class_id,course_id,school_year'),
       ]);
       if (sr.error) throw sr.error;
       if (cr.error) throw cr.error;
+      if (cor.error) throw cor.error;
       if (er.error) throw er.error;
       setStudents((sr.data ?? []) as Student[]);
       setClasses((cr.data ?? []) as ClassRow[]);
-      setAllEnrollments((er.data ?? []) as { student_id: string; class_id: string; school_year: string | null }[]);
+      setCourses((cor.data ?? []) as CourseRow[]);
+      setAllEnrollments((er.data ?? []) as { student_id: string; class_id: string; course_id: string; school_year: string | null }[]);
       setLoadStatus('idle');
     } catch (e: any) { setLoadStatus('error'); setLoadError(humanizeError(e)); }
   }, []);
@@ -197,7 +205,7 @@ export default function StudentsClient() {
 
     // Enrollments
     setEnrollStatus('loading');
-    const { data: enData, error: enErr } = await sb.from('enrollments').select('class_id,school_year').eq('student_id', id);
+    const { data: enData, error: enErr } = await sb.from('enrollments').select('class_id,course_id,school_year').eq('student_id', id);
     if (!enErr) setEnrollments((enData ?? []) as EnrollmentRow[]);
     setEnrollStatus('idle');
 
@@ -219,8 +227,8 @@ export default function StudentsClient() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return students.filter(s => {
-      if (derivedGrade(s.grade_year, s.grade_year_reference, selectedYear) === null) return false;
-      if (filterGrade !== 'all' && derivedGrade(s.grade_year, s.grade_year_reference, selectedYear) !== filterGrade) return false;
+      if (studentGrade(s.grade_year) === null) return false;
+      if (filterGrade !== 'all' && studentGrade(s.grade_year) !== filterGrade) return false;
       if (!q) return true;
       return s.first_name.toLowerCase().includes(q) ||
         s.last_name.toLowerCase().includes(q) ||
@@ -230,10 +238,10 @@ export default function StudentsClient() {
 
   const selectedStudent = useMemo(() => students.find(s => s.id === selectedId) ?? null, [students, selectedId]);
 
-  function enrolledClassIds(studentId: string): string[] {
+  function enrolledCourseIds(studentId: string): string[] {
     return allEnrollments
       .filter(e => e.student_id === studentId && (e.school_year == null || e.school_year === selectedYear))
-      .map(e => e.class_id);
+      .map(e => e.course_id);
   }
 
   // ── Grouped sections for the "By Grade / By Block / By Gender" views ──────
@@ -241,14 +249,16 @@ export default function StudentsClient() {
     if (view === 'grade') {
       return GRADE_YEARS.map(g => ({
         key: `grade-${g}`, label: `Grade ${g}`,
-        students: filtered.filter(s => derivedGrade(s.grade_year, s.grade_year_reference, selectedYear) === g),
+        students: filtered.filter(s => studentGrade(s.grade_year) === g),
       })).filter(sec => sec.students.length > 0);
     }
     if (view === 'block') {
-      return classes.map(c => ({
-        key: `block-${c.id}`, label: (c.block_label ? `Block ${c.block_label} — ` : '') + c.name,
-        students: filtered.filter(s => enrolledClassIds(s.id).includes(c.id)),
-      })).filter(sec => sec.students.length > 0);
+      return courses
+        .filter(c => c.school_year === selectedYear)
+        .map(c => ({
+          key: `block-${c.id}`, label: (c.block ? `Block ${c.block} — ` : '') + c.name,
+          students: filtered.filter(s => enrolledCourseIds(s.id).includes(c.id)),
+        })).filter(sec => sec.students.length > 0);
     }
     if (view === 'gender') {
       return [
@@ -260,7 +270,7 @@ export default function StudentsClient() {
     }
     return [{ key: 'all', label: 'Directory', students: filtered }];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, filtered, classes, allEnrollments, selectedYear]);
+  }, [view, filtered, courses, allEnrollments, selectedYear]);
 
   // ── CRUD: students ─────────────────────────────────────────────────────────
 
@@ -332,20 +342,23 @@ export default function StudentsClient() {
 
   // ── Enrollments ────────────────────────────────────────────────────────────
 
-  async function toggleEnrollment(classId: string, enrolled: boolean) {
+  // Writes course_id — the database fills in the matching class_id.
+  async function toggleEnrollment(courseId: string, enrolled: boolean) {
     if (!selectedId || !selectedStudent) return;
     setEnrollStatus('working'); setEnrollError(null);
     try {
       const sb = getSupabaseClient();
       const currentSchoolYear = selectedStudent.school_year || null;
       if (enrolled) {
-        const { error } = await sb.from('enrollments').delete().eq('student_id', selectedId).eq('class_id', classId).eq('school_year', currentSchoolYear);
+        const { error } = await sb.from('enrollments').delete().eq('student_id', selectedId).eq('course_id', courseId).eq('school_year', currentSchoolYear);
         if (error) throw error;
-        setEnrollments(prev => prev.filter(e => !(e.class_id === classId && e.school_year === currentSchoolYear)));
+        setEnrollments(prev => prev.filter(e => !(e.course_id === courseId && e.school_year === currentSchoolYear)));
       } else {
-        const { error } = await sb.from('enrollments').insert({ student_id: selectedId, class_id: classId, school_year: currentSchoolYear });
+        const { data, error } = await sb.from('enrollments')
+          .insert({ student_id: selectedId, course_id: courseId, school_year: currentSchoolYear })
+          .select('class_id,course_id,school_year').single();
         if (error) throw error;
-        setEnrollments(prev => [...prev, { class_id: classId, school_year: currentSchoolYear }]);
+        setEnrollments(prev => [...prev, data as EnrollmentRow]);
       }
       setEnrollStatus('idle');
     } catch (e: any) { setEnrollStatus('error'); setEnrollError(humanizeError(e)); }
@@ -530,10 +543,10 @@ export default function StudentsClient() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const enrolledIds = new Set(enrollments.map(e => e.class_id));
+  const enrolledIds = new Set(enrollments.map(e => e.course_id));
   const currentYear = selectedStudent?.school_year ?? null;
   const currentEnrolledIds = new Set(
-    enrollments.filter(e => e.school_year === currentYear).map(e => e.class_id)
+    enrollments.filter(e => e.school_year === currentYear).map(e => e.course_id)
   );
 
   return (
@@ -676,7 +689,7 @@ export default function StudentsClient() {
                           <div>
                             <div style={{ fontWeight: 900, color: RCS.deepNavy }}>{s.last_name}, {s.first_name}</div>
                             <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                              {[s.student_number ? `#${s.student_number}` : null, derivedGrade(s.grade_year, s.grade_year_reference, selectedYear) ? `Gr. ${derivedGrade(s.grade_year, s.grade_year_reference, selectedYear)}` : null, s.gender ? cap(s.gender) : null].filter(Boolean).join(' · ') || '—'}
+                              {[s.student_number ? `#${s.student_number}` : null, studentGrade(s.grade_year) ? `Gr. ${studentGrade(s.grade_year)}` : null, s.gender ? cap(s.gender) : null].filter(Boolean).join(' · ') || '—'}
                             </div>
                           </div>
                         </div>
@@ -797,22 +810,25 @@ export default function StudentsClient() {
                       {currentYear ? `${currentYear} — enroll or remove` : 'Current year — set School Year on the Info tab to enable year tracking'}
                     </div>
                     <div style={{ display: 'grid', gap: 6 }}>
-                      {classes.filter(c => !['Flex', 'Lunch', 'Chapel', 'CLE'].includes(c.name)).map(cls => {
-                        const enrolled = currentEnrolledIds.has(cls.id);
-                        return (
-                          <div key={cls.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: `1px solid ${enrolled ? RCS.gold : RCS.lightBlue}`, background: enrolled ? RCS.paleGold : RCS.white }}>
-                            <span style={{ fontWeight: 900, color: RCS.deepNavy }}>
-                              {cls.block_label ? `Block ${cls.block_label} – ` : ''}{cls.name}
-                            </span>
-                            <button
-                              onClick={() => toggleEnrollment(cls.id, enrolled)}
-                              disabled={enrollStatus === 'working'}
-                              style={enrolled ? S.dangerSm : { ...S.primaryBtn, fontSize: 12, padding: '6px 12px' }}>
-                              {enrolled ? 'Remove' : 'Enroll'}
-                            </button>
-                          </div>
-                        );
-                      })}
+                      {courses
+                        .filter(c => c.school_year === currentYear)
+                        .filter(c => !['Flex', 'Lunch', 'Chapel'].includes(c.name))
+                        .map(course => {
+                          const enrolled = currentEnrolledIds.has(course.id);
+                          return (
+                            <div key={course.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: `1px solid ${enrolled ? RCS.gold : RCS.lightBlue}`, background: enrolled ? RCS.paleGold : RCS.white }}>
+                              <span style={{ fontWeight: 900, color: RCS.deepNavy }}>
+                                {course.block ? `Block ${course.block} – ` : ''}{course.name}
+                              </span>
+                              <button
+                                onClick={() => toggleEnrollment(course.id, enrolled)}
+                                disabled={enrollStatus === 'working'}
+                                style={enrolled ? S.dangerSm : { ...S.primaryBtn, fontSize: 12, padding: '6px 12px' }}>
+                                {enrolled ? 'Remove' : 'Enroll'}
+                              </button>
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
 
@@ -829,15 +845,15 @@ export default function StudentsClient() {
                         {pastYears.map(year => {
                           const yearClasses = pastEnrollments
                             .filter(e => e.school_year === year)
-                            .map(e => classes.find(c => c.id === e.class_id))
-                            .filter((c): c is ClassRow => c !== undefined);
+                            .map(e => courses.find(c => c.id === e.course_id))
+                            .filter((c): c is CourseRow => c !== undefined);
                           return (
                             <div key={year} style={{ marginBottom: 12 }}>
                               <div style={{ fontSize: 12, fontWeight: 800, color: RCS.midBlue, opacity: 0.75, marginBottom: 4 }}>{year}</div>
                               <div style={{ display: 'grid', gap: 4 }}>
-                                {yearClasses.map(cls => (
-                                  <div key={cls.id} style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${RCS.lightBlue}`, background: '#f8fbff', color: RCS.textDark, fontSize: 14, fontWeight: 700 }}>
-                                    {cls.block_label ? `Block ${cls.block_label} – ` : ''}{cls.name}
+                                {yearClasses.map(course => (
+                                  <div key={course.id} style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${RCS.lightBlue}`, background: '#f8fbff', color: RCS.textDark, fontSize: 14, fontWeight: 700 }}>
+                                    {course.block ? `Block ${course.block} – ` : ''}{course.name}
                                   </div>
                                 ))}
                               </div>
