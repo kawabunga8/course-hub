@@ -154,7 +154,12 @@ export default function StudentsClient() {
         // Enrolment is per COURSE, not per class: one class can hold several courses
         // (Band 10-12 covers Band 10, 11 and 12) and a student may take a course below
         // their grade, so the course has to be chosen explicitly.
-        sb.from('courses').select('id,name,block,school_year,grade_years').order('block'),
+        // sort_order follows the timetable (A=1…H=7, CLE=8, so CLE lands at the end
+        // rather than alphabetically between C and D); name breaks ties within a
+        // block so ICT 9 (Q1) precedes (Q2) and Band 10/11/12 read in order.
+        sb.from('courses').select('id,name,block,school_year,grade_years')
+          .order('sort_order', { ascending: true, nullsFirst: false })
+          .order('name', { ascending: true }),
         sb.from('enrollments').select('student_id,class_id,course_id,school_year'),
       ]);
       if (sr.error) throw sr.error;
