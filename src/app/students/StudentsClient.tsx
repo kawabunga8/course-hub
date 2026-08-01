@@ -81,6 +81,9 @@ export default function StudentsClient() {
   const [allEnrollments, setAllEnrollments] = useState<{ student_id: string; class_id: string; course_id: string; school_year: string | null }[]>([]);
   const [courses, setCourses] = useState<CourseRow[]>([]);
 
+  // Which course to narrow the "By Block" view to ('all' = every block).
+  const [filterBlock, setFilterBlock] = useState<string>('all');
+
   // Quick edit: set gender and course enrollment straight from the list, without
   // opening each student. Saves immediately, like the rest of this page.
   const [quickEdit, setQuickEdit] = useState(false);
@@ -274,6 +277,7 @@ export default function StudentsClient() {
     if (view === 'block') {
       return courses
         .filter(c => c.school_year === selectedYear)
+        .filter(c => filterBlock === 'all' || c.id === filterBlock)
         .map(c => ({
           key: `block-${c.id}`, label: (c.block ? `Block ${c.block} — ` : '') + c.name,
           students: filtered.filter(s => enrolledCourseIds(s.id).includes(c.id)),
@@ -289,7 +293,7 @@ export default function StudentsClient() {
     }
     return [{ key: 'all', label: 'Directory', students: filtered }];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, filtered, courses, allEnrollments, selectedYear]);
+  }, [view, filtered, courses, allEnrollments, selectedYear, filterBlock]);
 
   // ── CRUD: students ─────────────────────────────────────────────────────────
 
@@ -502,17 +506,55 @@ export default function StudentsClient() {
 
   // ── Export CSV ─────────────────────────────────────────────────────────────
 
+  // Exports exactly what the current view shows, so narrowing to one block or grade
+  // and exporting gives that roster. The filename records the selection.
+  function exportScopeLabel(): string {
+    if (view === 'block' && filterBlock !== 'all') {
+      const c = courses.find(x => x.id === filterBlock);
+      if (c) return `${c.block ? `Block ${c.block} ` : ''}${c.name}`;
+    }
+    if (view === 'block') return 'All blocks';
+    if (view === 'grade') return filterGrade === 'all' ? 'All grades' : `Grade ${filterGrade}`;
+    if (view === 'gender') return 'By gender';
+    return filterGrade === 'all' ? '' : `Grade ${filterGrade}`;
+  }
+
   function exportCSV() {
+    // De-duplicate: in the block view a student enrolled in two courses appears twice.
+    const seen = new Set<string>();
+    const rowsOut: Student[] = [];
+    for (const sec of groupedSections) {
+      for (const s of sec.students) {
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        rowsOut.push(s);
+      }
+    }
+    rowsOut.sort((a, b) =>
+      a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+
     const header = 'first_name,last_name,student_number,grade_year,gender,school_year,email';
-    const rows = students.map(s =>
+    const rows = rowsOut.map(s =>
       [s.first_name, s.last_name, s.student_number ?? '', s.grade_year ?? '', s.gender ?? '', s.school_year ?? '', s.email ?? '']
         .map(v => `"${String(v).replace(/"/g, '""')}"`)
         .join(',')
     );
     const csv = [header, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+
+    const scope = exportScopeLabel();
+    // Course names like "CS10 (Q1/Q2)" turn punctuation into hyphens; collapse runs
+    // and trim the edges so the file isn't named "…-Q1-Q2-.csv".
+    const name = ['students', selectedYear, scope]
+      .filter(Boolean)
+      .join('_')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-+_|_-+/g, '_');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'students.csv'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `${name}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -700,6 +742,14 @@ export default function StudentsClient() {
             <option value="all">All grades</option>
             {GRADE_YEARS.map(g => <option key={g} value={g}>Grade {g}</option>)}
           </select>
+          {view === 'block' && (
+            <select value={filterBlock} onChange={e => setFilterBlock(e.target.value)} style={{ ...S.input, minWidth: 200 }}>
+              <option value="all">All blocks</option>
+              {courses.filter(c => c.school_year === selectedYear).map(c => (
+                <option key={c.id} value={c.id}>{c.block ? `Block ${c.block} — ` : ''}{c.name}</option>
+              ))}
+            </select>
+          )}
           <span style={{ fontSize: 13, opacity: 0.65, whiteSpace: 'nowrap' }}>
             {loadStatus === 'loading' ? 'Loading…' : `${filtered.length} of ${students.length} students`}
           </span>
