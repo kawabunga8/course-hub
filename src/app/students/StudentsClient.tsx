@@ -80,6 +80,12 @@ export default function StudentsClient() {
   // ── Directory-wide data (for thumbnails + "By Block" grouping) ────────────
   const [allEnrollments, setAllEnrollments] = useState<{ student_id: string; class_id: string; course_id: string; school_year: string | null }[]>([]);
   const [courses, setCourses] = useState<CourseRow[]>([]);
+
+  // Quick edit: set gender and course enrollment straight from the list, without
+  // opening each student. Saves immediately, like the rest of this page.
+  const [quickEdit, setQuickEdit] = useState(false);
+  const [quickBusy, setQuickBusy] = useState<string | null>(null);
+  const [quickError, setQuickError] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
 
   // ── Selected student ───────────────────────────────────────────────────────
@@ -238,6 +244,19 @@ export default function StudentsClient() {
 
   const selectedStudent = useMemo(() => students.find(s => s.id === selectedId) ?? null, [students, selectedId]);
 
+  // student_id -> set of course_ids for the selected year. Built once per render pass
+  // so the quick-edit checkboxes don't rescan every enrollment for every course.
+  const enrolledByStudent = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const e of allEnrollments) {
+      if (e.school_year != null && e.school_year !== selectedYear) continue;
+      let set = m.get(e.student_id);
+      if (!set) { set = new Set(); m.set(e.student_id, set); }
+      set.add(e.course_id);
+    }
+    return m;
+  }, [allEnrollments, selectedYear]);
+
   function enrolledCourseIds(studentId: string): string[] {
     return allEnrollments
       .filter(e => e.student_id === studentId && (e.school_year == null || e.school_year === selectedYear))
@@ -341,6 +360,47 @@ export default function StudentsClient() {
   }
 
   // ── Enrollments ────────────────────────────────────────────────────────────
+
+  // ── Quick edit from the list ───────────────────────────────────────────────
+
+  async function setGenderInline(studentId: string, gender: string) {
+    setQuickBusy(studentId); setQuickError(null);
+    try {
+      const value = gender || null;
+      const { error } = await getSupabaseClient().from('students').update({ gender: value }).eq('id', studentId);
+      if (error) throw error;
+      setStudents(prev => prev.map(s => s.id === studentId ? { ...s, gender: value } : s));
+    } catch (e: any) { setQuickError(humanizeError(e)); }
+    finally { setQuickBusy(null); }
+  }
+
+  // Writes course_id; the database fills in the matching class_id.
+  async function toggleEnrollmentInline(studentId: string, courseId: string, enrolled: boolean) {
+    setQuickBusy(studentId); setQuickError(null);
+    try {
+      const sb = getSupabaseClient();
+      if (enrolled) {
+        const { error } = await sb.from('enrollments').delete()
+          .eq('student_id', studentId).eq('course_id', courseId).eq('school_year', selectedYear);
+        if (error) throw error;
+        setAllEnrollments(prev => prev.filter(e =>
+          !(e.student_id === studentId && e.course_id === courseId && e.school_year === selectedYear)));
+        if (studentId === selectedId) {
+          setEnrollments(prev => prev.filter(e => !(e.course_id === courseId && e.school_year === selectedYear)));
+        }
+      } else {
+        const { data, error } = await sb.from('enrollments')
+          .insert({ student_id: studentId, course_id: courseId, school_year: selectedYear })
+          .select('student_id,class_id,course_id,school_year').single();
+        if (error) throw error;
+        setAllEnrollments(prev => [...prev, data as any]);
+        if (studentId === selectedId) {
+          setEnrollments(prev => [...prev, data as EnrollmentRow]);
+        }
+      }
+    } catch (e: any) { setQuickError(humanizeError(e)); }
+    finally { setQuickBusy(null); }
+  }
 
   // Writes course_id — the database fills in the matching class_id.
   async function toggleEnrollment(courseId: string, enrolled: boolean) {
@@ -654,7 +714,20 @@ export default function StudentsClient() {
               </button>
             ))}
           </div>
+          <button onClick={() => setQuickEdit(q => !q)} style={{
+            padding: '6px 14px', border: `1px solid ${RCS.gold}`, borderRadius: 8, cursor: 'pointer',
+            fontSize: 13, fontWeight: 800, marginLeft: 'auto',
+            background: quickEdit ? RCS.gold : 'transparent',
+            color: quickEdit ? RCS.deepNavy : RCS.white,
+          }}>
+            {quickEdit ? '✓ Quick edit' : 'Quick edit'}
+          </button>
         </div>
+        {quickError && (
+          <div style={{ background: '#FEE2E2', color: '#7F1D1D', padding: '8px 24px', fontSize: 13, fontWeight: 700 }}>
+            {quickError}
+          </div>
+        )}
 
         {/* ── Two-column layout ── */}
         <div style={{ display: 'grid', gridTemplateColumns: selectedId ? '380px 1fr' : '1fr', gap: 16, alignItems: 'start' }}>
@@ -674,23 +747,60 @@ export default function StudentsClient() {
                     const url = s.photo_url ? photoUrls[s.photo_url] : undefined;
                     return (
                       <div key={s.id} onClick={() => setSelectedId(sel ? null : s.id)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+                        style={{ display: 'flex', justifyContent: 'space-between',
+                          alignItems: quickEdit ? 'flex-start' : 'center', gap: 10,
                           padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
                           border: sel ? `2px solid ${RCS.gold}` : `1px solid ${i % 2 === 0 ? RCS.deepNavy : '#c8d8e8'}`,
                           background: sel ? RCS.paleGold : (i % 2 === 0 ? RCS.white : '#f5f8fb'),
+                          opacity: quickBusy === s.id ? 0.55 : 1,
                         }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 0 }}>
                           <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
                             border: `2px solid ${genderDotColor(s.gender)}`, background: RCS.paleGold,
                             display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900, color: RCS.deepNavy }}>
                             {url ? <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               : `${s.first_name[0] ?? ''}${s.last_name[0] ?? ''}`}
                           </div>
-                          <div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 900, color: RCS.deepNavy }}>{s.last_name}, {s.first_name}</div>
                             <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
                               {[s.student_number ? `#${s.student_number}` : null, studentGrade(s.grade_year) ? `Gr. ${studentGrade(s.grade_year)}` : null, s.gender ? cap(s.gender) : null].filter(Boolean).join(' · ') || '—'}
                             </div>
+
+                            {quickEdit && (
+                              // Clicks here must not also select/deselect the student.
+                              <div onClick={e => e.stopPropagation()}
+                                style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                                <select
+                                  value={s.gender ?? ''}
+                                  disabled={quickBusy === s.id}
+                                  onChange={e => void setGenderInline(s.id, e.target.value)}
+                                  style={{ ...S.input, padding: '4px 8px', fontSize: 12, minWidth: 108,
+                                    background: !s.gender ? '#ffe5e5'
+                                      : s.gender === 'male' ? '#dbeeff'
+                                      : s.gender === 'female' ? '#ffe0f0' : '#e8f5e9' }}>
+                                  <option value="">— gender —</option>
+                                  {GENDERS.map(g => <option key={g} value={g}>{cap(g)}</option>)}
+                                </select>
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                  {courses.filter(c => c.school_year === selectedYear).map(c => {
+                                    const on = enrolledByStudent.get(s.id)?.has(c.id) ?? false;
+                                    return (
+                                      <label key={c.id}
+                                        title={`${c.block ? `Block ${c.block} — ` : ''}${c.name}`}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12,
+                                          cursor: quickBusy === s.id ? 'wait' : 'pointer',
+                                          fontWeight: on ? 800 : 400, color: on ? RCS.deepNavy : undefined }}>
+                                        <input type="checkbox" checked={on} disabled={quickBusy === s.id}
+                                          onChange={() => void toggleEnrollmentInline(s.id, c.id, on)} />
+                                        {c.block ?? c.name}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
