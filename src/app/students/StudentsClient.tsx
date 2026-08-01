@@ -715,10 +715,10 @@ export default function StudentsClient() {
             ))}
           </div>
           <button onClick={() => setQuickEdit(q => !q)} style={{
-            padding: '6px 14px', border: `1px solid ${RCS.gold}`, borderRadius: 8, cursor: 'pointer',
-            fontSize: 13, fontWeight: 800, marginLeft: 'auto',
-            background: quickEdit ? RCS.gold : 'transparent',
-            color: quickEdit ? RCS.deepNavy : RCS.white,
+            padding: '6px 14px', border: `2px solid ${RCS.gold}`, borderRadius: 8, cursor: 'pointer',
+            fontSize: 13, fontWeight: 800, marginLeft: 'auto', whiteSpace: 'nowrap',
+            background: quickEdit ? RCS.gold : RCS.white,
+            color: RCS.deepNavy,
           }}>
             {quickEdit ? '✓ Quick edit' : 'Quick edit'}
           </button>
