@@ -47,6 +47,19 @@ function studentGrade(gradeYear: number | null): number | null {
 // A graduate is an alumnus for every year AFTER the one they finished, and still a
 // normal student in that final year and earlier. graduatedYear is a school year
 // like '2025-26'; compare on the starting calendar year.
+// Graduating cohort. A Gr12 in 2026-27 finishes in calendar 2027 -> "Class of 2027";
+// each lower grade adds a year. Alumni use the year they actually finished.
+function classOfYear(gradeYear: number | null, graduatedYear: string | null, selectedYear: string): number | null {
+  if (graduatedYear) {
+    const g = parseInt(graduatedYear.split('-')[0]!, 10);
+    return Number.isNaN(g) ? null : g + 1;
+  }
+  if (!gradeYear) return null;
+  const start = parseInt(selectedYear.split('-')[0]!, 10);
+  if (Number.isNaN(start)) return null;
+  return (start + 1) + (12 - gradeYear);
+}
+
 // '2026-27' -> '2025-26'
 function previousSchoolYear(y: string): string {
   const start = parseInt(y.split('-')[0]!, 10) - 1;
@@ -856,7 +869,14 @@ export default function StudentsClient() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 900, color: RCS.deepNavy }}>{s.last_name}, {s.first_name}</div>
                             <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                              {[s.student_number ? `#${s.student_number}` : null, s.graduated_year ? `Alumni ${s.graduated_year}` : (studentGrade(s.grade_year) ? `Gr. ${studentGrade(s.grade_year)}` : null), s.gender ? cap(s.gender) : null].filter(Boolean).join(' · ') || '—'}
+                              {(() => {
+                                const co = classOfYear(s.grade_year, s.graduated_year, selectedYear);
+                                return [
+                                  s.student_number ? `#${s.student_number}` : null,
+                                  co ? `Class of ${co}` : null,
+                                  s.gender ? cap(s.gender) : null,
+                                ].filter(Boolean).join(' · ') || '—';
+                              })()}
                             </div>
 
                             {quickEdit && (
