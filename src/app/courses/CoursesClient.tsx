@@ -78,8 +78,11 @@ export default function CoursesClient() {
       setLoadStatus('error');
       return;
     }
+    // sort_order already encodes block position and, within a block, the quarter a
+    // course runs in — so sorting by block first would undo both (CLE would land
+    // between C and D, and Band 9 (Q3/Q4) ahead of ICT 9 (Q1)).
     const rows = ((data ?? []) as Course[]).sort((a, b) =>
-      (a.block ?? '').localeCompare(b.block ?? '') || (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)
+      (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)
     );
     setCourses(rows);
     setLoadStatus('idle');
