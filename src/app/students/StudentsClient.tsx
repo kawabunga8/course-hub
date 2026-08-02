@@ -13,6 +13,7 @@ type Student = {
   photo_url: string | null;
   grade_year: number | null;
   grade_year_reference: string | null;
+  graduated_year: string | null;
   gender: string | null;
   student_number: string | null;
   school_year: string | null;
@@ -41,6 +42,23 @@ function currentSchoolYear(): string {
 // students from the directory.)
 function studentGrade(gradeYear: number | null): number | null {
   return gradeYear ?? null;
+}
+
+// A graduate is an alumnus for every year AFTER the one they finished, and still a
+// normal student in that final year and earlier. graduatedYear is a school year
+// like '2025-26'; compare on the starting calendar year.
+// '2026-27' -> '2025-26'
+function previousSchoolYear(y: string): string {
+  const start = parseInt(y.split('-')[0]!, 10) - 1;
+  return `${start}-${String(start + 1).slice(2)}`;
+}
+
+function isAlumnusBy(graduatedYear: string | null, selectedYear: string): boolean {
+  if (!graduatedYear) return false;
+  const gradStart = parseInt(graduatedYear.split('-')[0]!, 10);
+  const selStart = parseInt(selectedYear.split('-')[0]!, 10);
+  if (Number.isNaN(gradStart) || Number.isNaN(selStart)) return false;
+  return selStart > gradStart;
 }
 
 const KNOWN_YEARS = ['2025-26', '2026-27'];
@@ -74,7 +92,7 @@ export default function StudentsClient() {
 
   // ── Search / filter ────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
-  const [filterGrade, setFilterGrade] = useState<number | 'all'>('all');
+  const [filterGrade, setFilterGrade] = useState<number | 'all' | 'alumni'>('all');
   const [view, setView] = useState<'all' | 'grade' | 'block' | 'gender'>('all');
 
   // ── Directory-wide data (for thumbnails + "By Block" grouping) ────────────
@@ -147,7 +165,7 @@ export default function StudentsClient() {
     try {
       const sb = getSupabaseClient();
       const [sr, cr, cor, er] = await Promise.all([
-        sb.from('students').select('id,first_name,last_name,photo_url,grade_year,grade_year_reference,gender,student_number,school_year,email')
+        sb.from('students').select('id,first_name,last_name,photo_url,grade_year,grade_year_reference,gender,student_number,school_year,email,graduated_year')
           .order('last_name').order('first_name'),
         sb.from('classes').select('id,name,block_label,sort_order')
           .order('sort_order', { ascending: true, nullsFirst: false }),
@@ -198,7 +216,7 @@ export default function StudentsClient() {
     if (!selectedId) { setEditForm(null); return; }
     const s = students.find(s => s.id === selectedId);
     if (!s) return;
-    setEditForm({ first_name: s.first_name, last_name: s.last_name, grade_year: s.grade_year, gender: s.gender, student_number: s.student_number, school_year: s.school_year, email: s.email });
+    setEditForm({ first_name: s.first_name, last_name: s.last_name, grade_year: s.grade_year, gender: s.gender, student_number: s.student_number, school_year: s.school_year, email: s.email, graduated_year: s.graduated_year });
     setEditStatus('idle'); setEditError(null);
     setSignedUrl(null); setUploadStatus('idle'); setUploadError(null);
     setEnrollments([]); setNotes([]); setMarks([]);
@@ -241,8 +259,16 @@ export default function StudentsClient() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return students.filter(s => {
-      if (studentGrade(s.grade_year) === null) return false;
-      if (filterGrade !== 'all' && studentGrade(s.grade_year) !== filterGrade) return false;
+      const alum = isAlumnusBy(s.graduated_year, selectedYear);
+      // Graduates drop out of the years after they left, but still appear when you
+      // select the year they were here. 'alumni' in the grade filter shows only them.
+      if (filterGrade === 'alumni') {
+        if (!alum) return false;
+      } else {
+        if (alum) return false;
+        if (studentGrade(s.grade_year) === null) return false;
+        if (filterGrade !== 'all' && studentGrade(s.grade_year) !== filterGrade) return false;
+      }
       if (!q) return true;
       return s.first_name.toLowerCase().includes(q) ||
         s.last_name.toLowerCase().includes(q) ||
@@ -274,10 +300,14 @@ export default function StudentsClient() {
   // ── Grouped sections for the "By Grade / By Block / By Gender" views ──────
   const groupedSections = useMemo(() => {
     if (view === 'grade') {
-      return GRADE_YEARS.map(g => ({
+      const sections = GRADE_YEARS.map(g => ({
         key: `grade-${g}`, label: `Grade ${g}`,
         students: filtered.filter(s => studentGrade(s.grade_year) === g),
-      })).filter(sec => sec.students.length > 0);
+      }));
+      // Alumni have no grade, so they need their own section or they vanish here.
+      const alumni = filtered.filter(s => isAlumnusBy(s.graduated_year, selectedYear));
+      if (alumni.length > 0) sections.push({ key: 'grade-alumni', label: 'Alumni', students: alumni });
+      return sections.filter(sec => sec.students.length > 0);
     }
     if (view === 'block') {
       return courses
@@ -327,7 +357,7 @@ export default function StudentsClient() {
     if (!editForm.first_name?.trim() || !editForm.last_name?.trim()) { setEditError('First and last name are required.'); return; }
     setEditStatus('working'); setEditError(null);
     try {
-      const payload = { first_name: editForm.first_name?.trim() || '', last_name: editForm.last_name?.trim() || '', grade_year: editForm.grade_year ?? null, gender: editForm.gender ?? null, student_number: editForm.student_number?.trim() || null, school_year: editForm.school_year?.trim() || null, email: editForm.email?.trim().toLowerCase() || null };
+      const payload = { first_name: editForm.first_name?.trim() || '', last_name: editForm.last_name?.trim() || '', grade_year: editForm.grade_year ?? null, gender: editForm.gender ?? null, student_number: editForm.student_number?.trim() || null, school_year: editForm.school_year?.trim() || null, email: editForm.email?.trim().toLowerCase() || null, graduated_year: editForm.graduated_year ?? null };
       const { error } = await getSupabaseClient().from('students').update(payload).eq('id', selectedId);
       if (error) throw error;
       setStudents(prev => prev.map(s => s.id === selectedId ? { ...s, ...payload } : s));
@@ -519,9 +549,9 @@ export default function StudentsClient() {
       if (c) return `${c.block ? `Block ${c.block} ` : ''}${c.name}`;
     }
     if (view === 'block') return 'All blocks';
-    if (view === 'grade') return filterGrade === 'all' ? 'All grades' : `Grade ${filterGrade}`;
+    if (view === 'grade') return filterGrade === 'all' ? 'All grades' : filterGrade === 'alumni' ? 'Alumni' : `Grade ${filterGrade}`;
     if (view === 'gender') return 'By gender';
-    return filterGrade === 'all' ? '' : `Grade ${filterGrade}`;
+    return filterGrade === 'all' ? '' : filterGrade === 'alumni' ? 'Alumni' : `Grade ${filterGrade}`;
   }
 
   function exportCSV() {
@@ -743,9 +773,16 @@ export default function StudentsClient() {
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or student #…"
             style={{ ...S.input, flex: 1, minWidth: 220 }} />
-          <select value={filterGrade === 'all' ? 'all' : String(filterGrade)} onChange={e => setFilterGrade(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} style={{ ...S.input, minWidth: 130 }}>
+          <select
+            value={filterGrade === 'all' || filterGrade === 'alumni' ? filterGrade : String(filterGrade)}
+            onChange={e => {
+              const v = e.target.value;
+              setFilterGrade(v === 'all' || v === 'alumni' ? v : parseInt(v));
+            }}
+            style={{ ...S.input, minWidth: 130 }}>
             <option value="all">All grades</option>
             {GRADE_YEARS.map(g => <option key={g} value={g}>Grade {g}</option>)}
+            <option value="alumni">Alumni</option>
           </select>
           {view === 'block' && (
             <select value={filterBlock} onChange={e => setFilterBlock(e.target.value)} style={{ ...S.input, minWidth: 200 }}>
@@ -819,7 +856,7 @@ export default function StudentsClient() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 900, color: RCS.deepNavy }}>{s.last_name}, {s.first_name}</div>
                             <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                              {[s.student_number ? `#${s.student_number}` : null, studentGrade(s.grade_year) ? `Gr. ${studentGrade(s.grade_year)}` : null, s.gender ? cap(s.gender) : null].filter(Boolean).join(' · ') || '—'}
+                              {[s.student_number ? `#${s.student_number}` : null, s.graduated_year ? `Alumni ${s.graduated_year}` : (studentGrade(s.grade_year) ? `Gr. ${studentGrade(s.grade_year)}` : null), s.gender ? cap(s.gender) : null].filter(Boolean).join(' · ') || '—'}
                             </div>
 
                             {quickEdit && (
@@ -925,9 +962,20 @@ export default function StudentsClient() {
                     ))}
                     <label style={S.fieldWrap}>
                       <span style={S.label}>Grade year</span>
-                      <select value={editForm.grade_year ?? ''} onChange={e => setEditForm(p => p ? { ...p, grade_year: e.target.value ? parseInt(e.target.value) : null } : p)} style={S.input}>
+                      <select
+                        value={editForm.graduated_year ? 'alumni' : (editForm.grade_year ?? '')}
+                        onChange={e => setEditForm(p => {
+                          if (!p) return p;
+                          if (e.target.value === 'alumni') {
+                            // Record the year they finished, not the year being viewed.
+                            return { ...p, graduated_year: p.graduated_year ?? previousSchoolYear(selectedYear) };
+                          }
+                          return { ...p, graduated_year: null, grade_year: e.target.value ? parseInt(e.target.value) : null };
+                        })}
+                        style={S.input}>
                         <option value="">— not set —</option>
                         {GRADE_YEARS.map(g => <option key={g} value={g}>Grade {g}</option>)}
+                        <option value="alumni">Alumni</option>
                       </select>
                     </label>
                     <label style={S.fieldWrap}>
