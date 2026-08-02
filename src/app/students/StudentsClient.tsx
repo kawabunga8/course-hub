@@ -869,14 +869,11 @@ export default function StudentsClient() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 900, color: RCS.deepNavy }}>{s.last_name}, {s.first_name}</div>
                             <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                              {(() => {
-                                const co = classOfYear(s.grade_year, s.graduated_year, selectedYear);
-                                return [
-                                  s.student_number ? `#${s.student_number}` : null,
-                                  co ? `Class of ${co}` : null,
-                                  s.gender ? cap(s.gender) : null,
-                                ].filter(Boolean).join(' · ') || '—';
-                              })()}
+                              {[
+                                s.student_number ? `#${s.student_number}` : null,
+                                s.graduated_year ? 'Alumni' : (studentGrade(s.grade_year) ? `Gr. ${studentGrade(s.grade_year)}` : null),
+                                s.gender ? cap(s.gender) : null,
+                              ].filter(Boolean).join(' · ') || '—'}
                             </div>
 
                             {quickEdit && (
@@ -927,7 +924,17 @@ export default function StudentsClient() {
           {selectedStudent && (
             <div ref={detailRef} style={S.card}>
               <div style={{ ...S.sectionHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{selectedStudent.last_name}, {selectedStudent.first_name}</span>
+                <span>
+                  {selectedStudent.last_name}, {selectedStudent.first_name}
+                  {(() => {
+                    const co = classOfYear(selectedStudent.grade_year, selectedStudent.graduated_year, selectedYear);
+                    return co ? (
+                      <span style={{ marginLeft: 10, fontWeight: 700, fontSize: 13, opacity: 0.85 }}>
+                        Class of {co}
+                      </span>
+                    ) : null;
+                  })()}
+                </span>
                 <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', color: RCS.white, cursor: 'pointer', fontWeight: 900, fontSize: 18, lineHeight: 1 }}>✕</button>
               </div>
 
