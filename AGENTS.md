@@ -1,4 +1,4 @@
-# student-hub — Agent Context
+# course-hub — Agent Context
 
 ## What this app is
 The **central student data hub** for all RCS apps. This is the single place where

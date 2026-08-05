@@ -24,7 +24,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ## Architecture
 
-**Student Hub** is a Next.js 16 App Router app that serves as the central student data source for a suite of RCS (Richmond Christian School) tools: TOC-Dayplans, RCS Report Card Tool, Kawahoot, and Group Maker. It writes to a shared Supabase database; the other apps read from it.
+**Course Hub** is a Next.js 16 App Router app that serves as the central student data source for a suite of RCS (Richmond Christian School) tools: TOC-Dayplans, RCS Report Card Tool, Kawahoot, and Group Maker. It writes to a shared Supabase database; the other apps read from it.
 
 ### Supabase tables (managed here)
 - `public.students` — core student records (name, grade, gender, photo_url, student_number)

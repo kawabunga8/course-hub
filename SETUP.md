@@ -1,8 +1,8 @@
-# Student Hub — Setup Guide
+# Course Hub — Setup Guide
 
-Student Hub is the central student data app for all RCS apps.
+Course Hub is the central student data app for all RCS apps.
 After this setup, **one student record = one source of truth** across:
-- Student Hub (manage here)
+- Course Hub (manage here)
 - TOC-Dayplans
 - RCS Report Card Tool
 - Kawahoot
@@ -37,7 +37,7 @@ SUPABASE_SERVICE_ROLE_KEY=    ← "service_role" key (keep this secret!)
 Apps that need these:
 | App | File to create/update |
 |---|---|
-| student-hub | `student-hub/.env.local` |
+| course-hub | `course-hub/.env.local` |
 | toc-dayplans | already has it |
 | rcs-report-card-tool | already has it |
 | Kawahoot | `Kawahoot/.env.local` — rename `SUPABASE_SECRET_KEY` → `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` → `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
@@ -45,21 +45,21 @@ Apps that need these:
 
 ### Kawahoot extra env vars
 ```
-NEXT_PUBLIC_STUDENT_HUB_URL=https://your-student-hub.vercel.app
+NEXT_PUBLIC_COURSE_HUB_URL=https://rcs-course-hub.vercel.app
 ```
 
 ### Group Maker extra env vars
 ```
-NEXT_PUBLIC_STUDENT_HUB_URL=https://your-student-hub.vercel.app
+NEXT_PUBLIC_COURSE_HUB_URL=https://rcs-course-hub.vercel.app
 NEXT_PUBLIC_KAWAHOOT_URL=https://your-kawahoot.vercel.app
 ```
 
 ---
 
-## Step 3 — Install dependencies and run Student Hub
+## Step 3 — Install dependencies and run Course Hub
 
 ```bash
-cd student-hub
+cd course-hub
 npm install
 npm run dev   # runs on localhost:3000
 ```
@@ -70,7 +70,7 @@ npm run dev   # runs on localhost:3000
 
 If you had students in the old Kawahoot/Group Maker database, you need to move them.
 
-The easiest way is to **export them as CSV** from the old Supabase project and **import via Student Hub** (⬆ Import CSV button). The import accepts:
+The easiest way is to **export them as CSV** from the old Supabase project and **import via Course Hub** (⬆ Import CSV button). The import accepts:
 - `first_name`, `last_name` columns  
 - OR a `full_name` column (auto-split on first space)
 
@@ -78,18 +78,25 @@ The easiest way is to **export them as CSV** from the old Supabase project and *
 
 ## Step 5 — Deploy
 
-Deploy student-hub to Vercel just like your other apps:
+Deploy course-hub to Vercel just like your other apps:
 1. Push to GitHub
 2. Import in Vercel
 3. Set the three env vars in Vercel project settings
-4. Done — same URL used in the other apps' `NEXT_PUBLIC_STUDENT_HUB_URL`
+4. Done — the other apps reach it at the stable alias `rcs-course-hub.vercel.app`
+   via `NEXT_PUBLIC_COURSE_HUB_URL`. Use that alias rather than the
+   project-name domain, which moves if the Vercel project is renamed.
+
+> **Do not confuse this with `NEXT_PUBLIC_HUB_SUPABASE_URL`** in
+> rcs-report-card-tool. That one is the Supabase project URL, not this site.
+> It was previously called `NEXT_PUBLIC_STUDENT_HUB_URL`, which collided with
+> the site URL of the same name in toc-dayplans.
 
 ---
 
 ## How it all connects
 
 ```
-Student Hub  ──writes──▶  public.students  (Supabase)
+Course Hub  ──writes──▶  public.students  (Supabase)
                           public.classes
                           public.enrollments
                           public.student_notes

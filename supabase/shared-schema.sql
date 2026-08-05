@@ -4,7 +4,7 @@
 -- ┌─────────────────────┬──────────┬─────────┬─────────────┬───────────────┬───────────────┬───────────────────┬─────────────────────────┐
 -- │ App                 │ students │ classes │ enrollments │ student_notes │ student_marks │ learning_standards│ learning_standard_rubrics│
 -- ├─────────────────────┼──────────┼─────────┼─────────────┼───────────────┼───────────────┼───────────────────┼─────────────────────────┤
--- │ student-hub         │ R/W      │ R/W     │ R/W         │ R/W           │ R/W           │ R/W               │ R/W                     │
+-- │ course-hub         │ R/W      │ R/W     │ R/W         │ R/W           │ R/W           │ R/W               │ R/W                     │
 -- │ toc-dayplans        │ R/W      │ R/W     │ R/W         │ R/W           │ R/W           │ R                 │ R                       │
 -- │ Kawahoot            │ R        │ R       │ R           │ -             │ -             │ -                 │ -                       │ (also R/W own kawahoot_classes/students; reads public.courses for real rosters)
 -- │ group-maker         │ R        │ R       │ R           │ -             │ -             │ -                 │ -                       │ (also R/W own group_maker_classes/students)
@@ -14,7 +14,7 @@
 -- Note: rcs-report-card-tool uses its own rcs.* schema for enrollments/comments.
 --
 -- learning_standards/learning_standard_rubrics ownership moved here from toc-dayplans.
--- student-hub is the only app that creates/edits catalog rows. Edits to an already-
+-- course-hub is the only app that creates/edits catalog rows. Edits to an already-
 -- referenced standard create a NEW row (new id) with school_year set and link the old
 -- row's superseded_by — never mutate a row in place once it's been referenced. Use the
 -- current_learning_standards(p_school_year) function below to resolve "what applies this
@@ -42,7 +42,7 @@
 -- When modifying table structure, update THIS file first, then sync to Supabase.
 
 -- =============================================================================
--- CORE STUDENT DATA (owned by student-hub)
+-- CORE STUDENT DATA (owned by course-hub)
 -- =============================================================================
 
 create table if not exists public.students (
@@ -96,7 +96,7 @@ create table if not exists public.student_marks (
 );
 
 -- =============================================================================
--- CANONICAL COURSE CATALOG (owned by student-hub)
+-- CANONICAL COURSE CATALOG (owned by course-hub)
 -- =============================================================================
 
 create table if not exists public.courses (
@@ -172,7 +172,7 @@ create table if not exists public.kawahoot_students (
 create index if not exists kawahoot_students_class_id_idx on public.kawahoot_students(class_id);
 
 -- =============================================================================
--- LEARNING STANDARDS CATALOG (owned by student-hub)
+-- LEARNING STANDARDS CATALOG (owned by course-hub)
 -- =============================================================================
 
 create table if not exists public.learning_standards (
