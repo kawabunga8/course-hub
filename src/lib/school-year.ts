@@ -5,7 +5,8 @@ export function currentSchoolYear(): string {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth() + 1
-  const startYear = month >= 9 ? year : year - 1
+  // >= 7 (July): new school year planning starts in summer before September
+  const startYear = month >= 7 ? year : year - 1
   return `${startYear}-${String(startYear + 1).slice(2)}`
 }
 
