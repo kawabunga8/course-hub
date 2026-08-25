@@ -26,12 +26,24 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 **Course Hub** is a Next.js 16 App Router app that serves as the central student data source for a suite of RCS (Richmond Christian School) tools: TOC-Dayplans, RCS Report Card Tool, Kawahoot, and Group Maker. It writes to a shared Supabase database; the other apps read from it.
 
-### Supabase tables (managed here)
+### Supabase tables (owned here)
+
+Owned means written here. Every one of these is read by other apps in the suite,
+and the rule is that they read and do not write. See `ARCHITECTURE.md` for the
+canonical data model and for where that rule is currently broken.
+
 - `public.students` — core student records (name, grade, gender, photo_url, student_number)
-- `public.classes` — class definitions with block_label and sort_order
-- `public.enrollments` — many-to-many students ↔ classes
+- `public.courses` — the canonical course table, and the source of truth for course data across the suite
+- `public.enrollments` — students ↔ courses
+- `public.school_quarters` — quarter start and end dates
+- `public.learning_standards` — the standards catalogue
+- `public.learning_standard_rubrics` — rubric levels per standard
 - `public.student_notes` — per-student timestamped notes
 - `public.student_marks` — per-student subject marks with quarter and class references
+
+**Not owned here:** `public.classes` is read once, in the marks panel, and never
+written. TOC-Dayplans writes it. It is scheduled for retirement in favour of
+`courses` plus a teaching group — see `ARCHITECTURE.md`.
 
 Photos are stored in the Supabase Storage bucket **"Student Photos"**.
 
