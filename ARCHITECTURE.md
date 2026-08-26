@@ -269,13 +269,17 @@ as zeros rather than excluded.
 > | `courses` | Course Hub, Report Card Tool |
 > | `enrollments` | Course Hub, TOC-Dayplans, Report Card Tool |
 > | `learning_standards` | Course Hub, TOC-Dayplans, Report Card Tool |
-> | `school_quarters` | Course Hub, TOC-Dayplans |
+> | `school_quarters` | Course Hub |
 > | `classes` | TOC-Dayplans only - Course Hub reads it and never writes it |
 > | `student_marks`, `student_notes` | Course Hub |
 >
-> Five of the eight have more than one writer, so "Course Hub is the single
+> Four of the eight have more than one writer, so "Course Hub is the single
 > source" is the goal rather than the current state. CourseBoard is genuinely
 > read-only: no writes at all.
+>
+> `school_quarters` was corrected on 2026-08-25: TOC-Dayplans carried a PATCH
+> handler that wrote it and no caller ever used it (toc-dayplans `d18b36a`).
+> The route now only reads, so the table has a single writer again.
 >
 > `classes` is the inversion. Course Hub's own documentation used to claim it,
 > and it is the one table Course Hub never writes. Retiring it, as this document

@@ -26,15 +26,19 @@ src/lib/supabaseClient.ts             ← browser Supabase client
 middleware.ts                         ← protects all routes except /login and /auth
 ```
 
-## Database tables owned by this app
-All in the `public` schema:
-- `students` — id, first_name, last_name, photo_url, grade_year, gender, student_number
-- `student_notes` — id, student_id, note, created_at, updated_at
-- `student_marks` — id, student_id, subject, mark, quarter, class_id, note
+## Database tables
+This file does not list them. `CLAUDE.md` holds the owned-table list, and
+`ARCHITECTURE.md` §5 holds the measured writer-by-table table — measured by which
+app actually issues inserts, updates or deletes, which is not always who owns it.
 
-Tables this app reads but shares with toc-dayplans:
-- `classes` — courses/class definitions
-- `enrollments` — student ↔ class membership
+Keeping a third copy here is how the three files drifted apart in the first
+place: this section used to say `enrollments` was read-only for this app, while
+`CLAUDE.md` listed it as owned and the code inserts and deletes it in
+`StudentsClient.tsx`. Correct those two files; don't re-list here.
+
+The one rule worth repeating: **this app writes, the sibling apps read.** Where
+that is not yet true, `ARCHITECTURE.md` §5 says so explicitly rather than
+pretending otherwise.
 
 ## Required env vars
 ```
@@ -60,6 +64,9 @@ kawahoot-game-tables.sql  (Kawahoot game tables — run once in shared Supabase 
 - **Empty student list** — either no students added yet, or RLS policy is blocking anon reads
 
 ## Role in the ecosystem
-- **Writes:** students, student_notes, student_marks, enrollments
-- **Never writes:** Kawahoot game tables (games, players, answers, etc.)
-- **Other apps depend on this:** always update student data here, never directly in other apps
+- **Never writes:** Kawahoot game tables (games, players, answers, etc.), and
+  `public.classes` — TOC-Dayplans owns that one.
+- **Other apps depend on this:** always update student and course data here,
+  never directly in other apps.
+- For which tables this app writes, see `CLAUDE.md`; for which apps currently
+  write them in practice, see `ARCHITECTURE.md` §5.
