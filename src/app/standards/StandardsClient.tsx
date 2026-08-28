@@ -53,6 +53,7 @@ export default function StandardsClient() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editStatus, setEditStatus] = useState<'idle' | 'working' | 'error'>('idle');
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [rubricFor, setRubricFor] = useState<Standard | null>(null);
   const [rubricRows, setRubricRows] = useState<Rubric[]>([]);
@@ -107,16 +108,36 @@ export default function StandardsClient() {
   function startEdit(s: Standard) {
     setEditingId(s.id);
     setEditTitle(s.standard_title);
+    setEditError(null);
+    setEditStatus('idle');
   }
 
-  // Editing a standard never rewrites the row in place: it creates a new versioned
-  // row scoped to the currently selected school year, copies that standard's rubric
-  // rows as a starting point, and marks the old row as superseded — so anything that
-  // already references the old row (day plans, generated comments) keeps its history.
-  async function saveEdit(s: Standard) {
+  // Editing never rewrites a row in place. It writes a new version, copies the
+  // rubric rows across as a starting point, and leaves the old row intact so that
+  // anything already referencing it (day plans, generated comments) keeps its
+  // history.
+  //
+  // There are two genuinely different edits, and conflating them silently deleted
+  // standards. Superseding an evergreen row while stamping its replacement with the
+  // selected year removed the standard from every OTHER year: the old row was
+  // excluded as superseded, the new one excluded by year.
+  //
+  //   'correct'  — fix a mistake. The replacement keeps the original's scope, and
+  //                the old row is superseded. An evergreen standard stays evergreen.
+  //   'thisYear' — the standard means something different from this year on. Writes
+  //                a row scoped to the selected year and leaves the evergreen row
+  //                live for other years; current_learning_standards() prefers the
+  //                year-specific row. Editing a row already scoped to the selected
+  //                year is a correction of that row, so it supersedes instead.
+  async function saveEdit(s: Standard, mode: 'correct' | 'thisYear') {
     if (!editTitle.trim()) return;
     setEditStatus('working');
+    setEditError(null);
     const supabase = getSupabaseClient();
+
+    const scopedToSelectedYear = s.school_year === selectedYear;
+    const newYear = mode === 'correct' ? s.school_year : selectedYear;
+    const supersedeOld = mode === 'correct' || scopedToSelectedYear;
 
     const { data: newRow, error: insertErr } = await supabase
       .from('learning_standards')
@@ -125,27 +146,45 @@ export default function StandardsClient() {
         standard_key: s.standard_key,
         standard_title: editTitle.trim(),
         sort_order: s.sort_order,
-        school_year: selectedYear,
+        school_year: newYear,
       })
       .select('id')
       .single();
-    if (insertErr || !newRow) { setEditStatus('error'); return; }
+    if (insertErr || !newRow) {
+      setEditStatus('error');
+      setEditError(insertErr?.message ?? 'Could not save this version.');
+      return;
+    }
 
     const { data: oldRubrics } = await supabase
       .from('learning_standard_rubrics')
       .select('grade,level,original_text,edited_text')
       .eq('learning_standard_id', s.id);
     if (oldRubrics && oldRubrics.length > 0) {
-      await supabase.from('learning_standard_rubrics').insert(
+      const { error: rubricErr } = await supabase.from('learning_standard_rubrics').insert(
         oldRubrics.map((r) => ({ ...r, learning_standard_id: newRow.id }))
       );
+      // The version exists and is usable without its rubrics; say so rather than
+      // leaving the descriptors quietly missing.
+      if (rubricErr) {
+        setEditStatus('error');
+        setEditError(`Saved, but the rubric descriptors did not copy across: ${rubricErr.message}`);
+        load();
+        return;
+      }
     }
 
-    const { error: supersedeErr } = await supabase
-      .from('learning_standards')
-      .update({ superseded_by: newRow.id, superseded_at: new Date().toISOString() })
-      .eq('id', s.id);
-    if (supersedeErr) { setEditStatus('error'); return; }
+    if (supersedeOld) {
+      const { error: supersedeErr } = await supabase
+        .from('learning_standards')
+        .update({ superseded_by: newRow.id, superseded_at: new Date().toISOString() })
+        .eq('id', s.id);
+      if (supersedeErr) {
+        setEditStatus('error');
+        setEditError(supersedeErr.message);
+        return;
+      }
+    }
 
     setEditingId(null);
     setEditStatus('idle');
@@ -235,15 +274,28 @@ export default function StandardsClient() {
             {rows.map((s) => (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: `1px solid ${RCS.lightBlue}` }}>
                 {editingId === s.id ? (
-                  <>
-                    <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ flex: 1, padding: 6, marginRight: 8 }} />
-                    <button onClick={() => saveEdit(s)} disabled={editStatus === 'working'} style={{ background: RCS.deepNavy, color: RCS.white, border: `1px solid ${RCS.gold}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', marginRight: 6 }}>
-                      {editStatus === 'working' ? 'Saving…' : `Save as ${selectedYear} version`}
-                    </button>
-                    <button onClick={() => setEditingId(null)} style={{ background: 'transparent', border: `1px solid ${RCS.deepNavy}`, color: RCS.deepNavy, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
-                      Cancel
-                    </button>
-                  </>
+                  <div style={{ flex: 1 }}>
+                    <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ width: '100%', padding: 6, marginBottom: 8 }} />
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button onClick={() => saveEdit(s, 'correct')} disabled={editStatus === 'working'} style={{ background: RCS.deepNavy, color: RCS.white, border: `1px solid ${RCS.gold}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
+                        {editStatus === 'working' ? 'Saving…' : 'Fix a mistake'}
+                      </button>
+                      {s.school_year !== selectedYear && (
+                        <button onClick={() => saveEdit(s, 'thisYear')} disabled={editStatus === 'working'} style={{ background: 'transparent', border: `1px solid ${RCS.deepNavy}`, color: RCS.deepNavy, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
+                          Change for {selectedYear} only
+                        </button>
+                      )}
+                      <button onClick={() => { setEditingId(null); setEditError(null); }} style={{ background: 'transparent', border: `1px solid ${RCS.lightBlue}`, color: RCS.midBlue, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                      <span style={{ fontSize: 12, color: RCS.midBlue }}>
+                        {s.school_year
+                          ? `Applies to ${s.school_year}.`
+                          : `Applies to all years. “Fix a mistake” keeps it that way.`}
+                      </span>
+                    </div>
+                    {editError && <div style={{ color: 'crimson', fontSize: 12, marginTop: 6 }}>{editError}</div>}
+                  </div>
                 ) : (
                   <>
                     <div>
