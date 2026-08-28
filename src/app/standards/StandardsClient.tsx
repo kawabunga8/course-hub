@@ -23,6 +23,16 @@ type Rubric = {
   edited_text: string | null;
 };
 
+type ImportSummary = {
+  csv_rows: number;
+  new_standards: string[];
+  retitled: string[];
+  in_database_but_not_in_csv: string[];
+  rubric_cells: number;
+};
+type ImportReport = { dryRun: boolean; subjects: Record<string, ImportSummary> };
+
+const IMPORT_SUBJECTS = ['all', 'ADST', 'FA', 'Bible'];
 const KNOWN_YEARS = ['2025-26', '2026-27'];
 const GRADES = [9, 10, 11, 12];
 const LEVELS: Rubric['level'][] = ['emerging', 'developing', 'proficient', 'extending'];
@@ -54,6 +64,12 @@ export default function StandardsClient() {
   const [editTitle, setEditTitle] = useState('');
   const [editStatus, setEditStatus] = useState<'idle' | 'working' | 'error'>('idle');
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [showImport, setShowImport] = useState(false);
+  const [importSubject, setImportSubject] = useState('all');
+  const [importStatus, setImportStatus] = useState<'idle' | 'working'>('idle');
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const [rubricFor, setRubricFor] = useState<Standard | null>(null);
   const [rubricRows, setRubricRows] = useState<Rubric[]>([]);
@@ -191,6 +207,42 @@ export default function StandardsClient() {
     load();
   }
 
+  // Two-step by design: the preview lists exactly what would change, and only then
+  // is a write offered. Import never deletes, so the worst case is a re-run.
+  async function runImport(dryRun: boolean) {
+    setImportStatus('working');
+    setImportError(null);
+    if (dryRun) setImportReport(null);
+    try {
+      const res = await fetch('/api/admin/standards/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: importSubject, dryRun }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setImportError([body.error, ...(body.details ?? [])].filter(Boolean).join('\n'));
+      } else {
+        setImportReport(body as ImportReport);
+        if (!dryRun) load();
+      }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Import failed.');
+    }
+    setImportStatus('idle');
+  }
+
+  // Drops the hand-edit and falls back to the CSV text. This lived in TOC Day
+  // Plans' Policies page, which is now read-only.
+  async function resetRubricRow(row: Rubric) {
+    if (!row.id) return;
+    setRubricStatus('saving');
+    const supabase = getSupabaseClient();
+    await supabase.from('learning_standard_rubrics').update({ edited_text: null }).eq('id', row.id);
+    if (rubricFor) await openRubric(rubricFor);
+    setRubricStatus('idle');
+  }
+
   async function openRubric(s: Standard) {
     setRubricFor(s);
     setRubricStatus('loading');
@@ -237,6 +289,12 @@ export default function StandardsClient() {
             {KNOWN_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
           <button
+            onClick={() => { setShowImport((v) => !v); setImportReport(null); setImportError(null); }}
+            style={{ background: 'transparent', border: `1px solid ${RCS.gold}`, color: RCS.white, borderRadius: 10, fontWeight: 700, padding: '8px 16px', cursor: 'pointer' }}
+          >
+            Import CSV…
+          </button>
+          <button
             onClick={() => setShowAdd((v) => !v)}
             style={{ background: RCS.gold, border: `1px solid ${RCS.gold}`, color: RCS.deepNavy, borderRadius: 10, fontWeight: 900, padding: '8px 16px', cursor: 'pointer' }}
           >
@@ -246,6 +304,57 @@ export default function StandardsClient() {
       </div>
 
       <div style={{ padding: 24, color: RCS.textDark }}>
+
+      {showImport && (
+        <div style={{ border: `1px solid ${RCS.deepNavy}`, borderRadius: 12, padding: 16, marginBottom: 20, background: RCS.white }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <strong style={{ color: RCS.deepNavy }}>Import standards from CSV</strong>
+            <select value={importSubject} onChange={(e) => setImportSubject(e.target.value)} style={{ padding: 6 }}>
+              {IMPORT_SUBJECTS.map((s) => <option key={s} value={s}>{s === 'all' ? 'All subjects' : s}</option>)}
+            </select>
+            <button onClick={() => runImport(true)} disabled={importStatus === 'working'}
+              style={{ background: RCS.deepNavy, color: RCS.white, border: `1px solid ${RCS.gold}`, borderRadius: 8, padding: '6px 14px', cursor: 'pointer' }}>
+              {importStatus === 'working' ? 'Working…' : 'Preview changes'}
+            </button>
+            {importReport?.dryRun && (
+              <button onClick={() => runImport(false)} disabled={importStatus === 'working'}
+                style={{ background: RCS.gold, color: RCS.deepNavy, border: `1px solid ${RCS.gold}`, borderRadius: 8, fontWeight: 700, padding: '6px 14px', cursor: 'pointer' }}>
+                Apply
+              </button>
+            )}
+          </div>
+          <p style={{ fontSize: 12, color: RCS.midBlue, margin: '8px 0 0' }}>
+            Reads one CSV per subject from Supabase Storage. Standards are matched by key and keep their id, so
+            links from the Report Card Tool survive. Nothing is deleted, and your rubric edits are preserved —
+            only the original text is refreshed.
+          </p>
+
+          {importError && (
+            <pre style={{ color: 'crimson', fontSize: 12, whiteSpace: 'pre-wrap', marginTop: 10 }}>{importError}</pre>
+          )}
+
+          {importReport && (
+            <div style={{ marginTop: 12, fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: importReport.dryRun ? RCS.midBlue : 'green', marginBottom: 6 }}>
+                {importReport.dryRun ? 'Preview — nothing written yet.' : 'Applied.'}
+              </div>
+              {Object.entries(importReport.subjects).map(([subject, s]) => (
+                <div key={subject} style={{ marginBottom: 8 }}>
+                  <strong>{subject}</strong> — {s.csv_rows} rubric cells
+                  <ul style={{ margin: '4px 0 0 18px' }}>
+                    <li>New standards: {s.new_standards.length ? s.new_standards.join(', ') : 'none'}</li>
+                    <li>Renamed: {s.retitled.length ? s.retitled.join('; ') : 'none'}</li>
+                    <li style={{ color: s.in_database_but_not_in_csv.length ? '#a05a00' : undefined }}>
+                      In database but not in the CSV (left alone, retire by hand if wanted):{' '}
+                      {s.in_database_but_not_in_csv.length ? s.in_database_but_not_in_csv.join(', ') : 'none'}
+                    </li>
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showAdd && (
         <div style={{ border: `1px solid ${RCS.deepNavy}`, borderRadius: 12, padding: 16, marginBottom: 20, background: RCS.paleGold }}>
@@ -331,8 +440,23 @@ export default function StandardsClient() {
                   const row = rubricRows.find((r) => r.grade === grade && r.level === level)!;
                   return (
                     <div key={level} style={{ marginTop: 4 }}>
-                      <label style={{ fontSize: 12, textTransform: 'capitalize', color: RCS.midBlue }}>{level}</label>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <label style={{ fontSize: 12, textTransform: 'capitalize', color: RCS.midBlue }}>{level}</label>
+                        {row.edited_text != null && (
+                          <>
+                            <span style={{ fontSize: 11, color: '#a05a00' }}>edited</span>
+                            <button
+                              onClick={() => resetRubricRow(row)}
+                              style={{ fontSize: 11, background: 'transparent', border: `1px solid ${RCS.lightBlue}`, color: RCS.midBlue, borderRadius: 6, padding: '1px 8px', cursor: 'pointer' }}
+                            >
+                              Reset to original
+                            </button>
+                          </>
+                        )}
+                      </div>
                       <textarea
+                        // Keyed on the text so a reset re-renders with the original.
+                        key={`${row.id}-${row.edited_text ?? ''}`}
                         defaultValue={row.edited_text ?? row.original_text}
                         onBlur={(e) => saveRubricRow(row, e.target.value)}
                         style={{ width: '100%', minHeight: 40, padding: 6, border: `1px solid ${RCS.lightBlue}`, borderRadius: 6 }}
