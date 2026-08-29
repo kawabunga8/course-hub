@@ -243,9 +243,21 @@ export default function StandardsClient() {
     setRubricStatus('idle');
   }
 
+  function blankRubricRows(standardId: string): Rubric[] {
+    return GRADES.flatMap((grade) =>
+      LEVELS.map((level) => ({ id: '', learning_standard_id: standardId, grade, level, original_text: '', edited_text: null }))
+    );
+  }
+
   async function openRubric(s: Standard) {
     setRubricFor(s);
     setRubricStatus('loading');
+    // setRubricFor/setRubricStatus above batch into one synchronous re-render, which
+    // happens before this fetch resolves. rubricRows was left holding whatever the
+    // previous standard had (or the initial []), so the render below found no match
+    // for most grade/level pairs and crashed on `row!.edited_text`. Seeding the full
+    // 16-cell placeholder set now keeps that first render safe.
+    setRubricRows(blankRubricRows(s.id));
     const supabase = getSupabaseClient();
     const { data } = await supabase
       .from('learning_standard_rubrics')
@@ -437,7 +449,12 @@ export default function StandardsClient() {
               <div key={grade} style={{ marginBottom: 12 }}>
                 <strong>Grade {grade}</strong>
                 {LEVELS.map((level) => {
-                  const row = rubricRows.find((r) => r.grade === grade && r.level === level)!;
+                  // Falls back to a blank placeholder instead of asserting non-null:
+                  // that assertion is compile-time only, and a real undefined here
+                  // (e.g. rubricRows momentarily out of sync with rubricFor) used to
+                  // crash the whole page rather than just show an empty box.
+                  const row = rubricRows.find((r) => r.grade === grade && r.level === level)
+                    ?? { id: '', learning_standard_id: rubricFor.id, grade, level, original_text: '', edited_text: null };
                   return (
                     <div key={level} style={{ marginTop: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
