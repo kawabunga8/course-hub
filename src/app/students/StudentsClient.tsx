@@ -1110,6 +1110,9 @@ export default function StudentsClient() {
               {activePanel === 'notes' && (
                 <div>
                   <div style={{ marginBottom: 14 }}>
+                    <div style={{ ...S.muted, marginBottom: 6, fontStyle: 'italic' }}>
+                      Academic and classroom notes only — not health, counselling, discipline, or family-circumstance information. That belongs in the systems set up for it, not here.
+                    </div>
                     <textarea value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="Add a note…" rows={3}
                       style={{ ...S.input, width: '100%', resize: 'vertical', boxSizing: 'border-box' as const }} />
                     <button onClick={addNote} disabled={!newNote.trim() || notesStatus === 'working'} style={{ ...S.primaryBtn, marginTop: 8 }}>
