@@ -55,7 +55,7 @@ export default function LoginClient() {
           <div style={{ color: RCS.gold, fontWeight: 900, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
             Richmond Christian School
           </div>
-          <div style={{ color: RCS.white, fontWeight: 900, fontSize: 22 }}>Student Hub</div>
+          <div style={{ color: RCS.white, fontWeight: 900, fontSize: 22 }}>Course Hub</div>
         </div>
 
         {/* Form */}

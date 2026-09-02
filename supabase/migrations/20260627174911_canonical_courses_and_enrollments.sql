@@ -1,5 +1,5 @@
 -- Establishes public.courses as the single canonical course/class catalog,
--- replacing the parallel public.classes (student-hub/toc-dayplans) and
+-- replacing the parallel public.classes (course-hub/toc-dayplans) and
 -- rcs.courses (rcs-report-card-tool) catalogs. Versioned via supersession,
 -- same pattern as public.learning_standards: editing a course that's already
 -- been referenced creates a new row rather than mutating history.

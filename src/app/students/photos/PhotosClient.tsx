@@ -210,7 +210,7 @@ export default function PhotosClient() {
                 {unmatched.length > 0 && (
                   <section>
                     <h2 style={{ color: RCS.red, fontSize: 16, marginBottom: 12 }}>Unmatched — will not be uploaded</h2>
-                    <p style={{ color: RCS.gray, fontSize: 13, marginBottom: 12 }}>No student found with these numbers. Add the student to Student Hub first, then re-upload.</p>
+                    <p style={{ color: RCS.gray, fontSize: 13, marginBottom: 12 }}>No student found with these numbers. Add the student to Course Hub first, then re-upload.</p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
                       {unmatched.map((m, i) => (
                         <div key={i} style={{ border: `1px solid ${RCS.red}`, borderRadius: 10, overflow: 'hidden', background: RCS.white, opacity: 0.7 }}>
@@ -220,7 +220,7 @@ export default function PhotosClient() {
                           <div style={{ padding: '8px 10px' }}>
                             <div style={{ fontWeight: 800, fontSize: 13, color: RCS.red }}>#{m.parsedNumber}</div>
                             <div style={{ fontSize: 11, color: RCS.gray }}>{m.parsedName}</div>
-                            <div style={{ fontSize: 10, color: RCS.red, marginTop: 2 }}>Not in Student Hub</div>
+                            <div style={{ fontSize: 10, color: RCS.red, marginTop: 2 }}>Not in Course Hub</div>
                           </div>
                         </div>
                       ))}

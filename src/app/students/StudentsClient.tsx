@@ -36,7 +36,7 @@ function currentSchoolYear(): string {
   return `${startYear}-${String(startYear + 1).slice(2)}`;
 }
 
-// Grade is whatever is set here in Student Hub — this app owns it. It is stored as
+// Grade is whatever is set here in Course Hub — this app owns it. It is stored as
 // the student's actual current grade, not extrapolated from a reference year.
 // (Extrapolating produced impossible values like "Grade 13" and silently hid those
 // students from the directory.)

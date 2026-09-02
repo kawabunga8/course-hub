@@ -18,7 +18,7 @@ Each of these is observed in the live database, not hypothetical.
 | 1 | Year-specific facts stored on the course row | `rcs.courses.school_years` is an array with a single `block` column | A course in two years cannot hold two blocks. Patched with `course_blocks`; the same patch will be needed for room, teacher, section… |
 | 2 | Quarters have no school year | `public.school_quarters` = 4 rows, ids 1–4, dates hard-coded to 2025-26 | Next year overwrites this year's dates. Quarter history is lost permanently |
 | 3 | ~~Student identity is year-scoped~~ **Resolved** | `enrollments.grade_year` added; 2026-27 imported by matching returning students to their existing row | 76 students now hold enrollments in both years under one identity. `students.school_year` is vestigial and can be dropped |
-| 4 | ~~Two competing course tables~~ **Resolved** | Student Hub (`public.courses`) is now the source of truth for all course data; `rcs.course_hub_links` maps it to enrollments | — |
+| 4 | ~~Two competing course tables~~ **Resolved** | Course Hub (`public.courses`) is now the source of truth for all course data; `rcs.course_hub_links` maps it to enrollments | — |
 | 5 | Two competing student tables | `public.students` (145) and `rcs.students` (5) | Querying the wrong one silently returns almost nothing. `rcs.students` is test data — numbers 10001–10004 plus 999999, created Mar 2026; 3 of 5 duplicate a real `public.students` person under a different UUID |
 | 6 | Missing referential integrity | No FK on `rcs.enrollments.student_id` | The 1 orphaned enrollment was a test-data row (removed); nothing prevents more without the FK |
 | 7 | Flat authorisation | Every `rcs.*` policy is `ALL` to `authenticated` using `true` | Any signed-in account reads every student in every year. No per-teacher scoping, no read-only past |
@@ -30,7 +30,7 @@ Each of these is observed in the live database, not hypothetical.
 
 ## 2. Target model
 
-> **Source of truth: Student Hub.** All course data is read from and stored in
+> **Source of truth: Course Hub.** All course data is read from and stored in
 > `public.courses`. It already holds one row per course per school year with
 > that year's block, room, quarters and sort order — i.e. it is already the
 > `COURSE_OFFERINGS` table below, and `rcs.course_blocks` is superseded by it.
@@ -232,7 +232,7 @@ showing a zero:
 > **No records for this course.** CourseBoard was not in use during Q1–Q2 of
 > 2025-26. This course ran in Q1; its roster predates the system.
 
-Because Student Hub already stores `quarters` per course and `school_quarters`
+Because Course Hub already stores `quarters` per course and `school_quarters`
 holds the dates, this is derivable — no per-course flagging needed.
 
 ### Why this belongs in the schema
@@ -248,7 +248,7 @@ as zeros rather than excluded.
 
 ---
 
-## 5. Keeping Student Hub the single source
+## 5. Keeping Course Hub the single source
 
 Several apps share this database. Course data currently exists in **three**
 places, and they disagree:
@@ -259,7 +259,7 @@ places, and they disagree:
 | `public.courses` | 32 | 27 Jun 2026 | CourseBoard, group maker (`source_course_id`) |
 | `rcs.courses` | 25 | — | Report card tool; CourseBoard via `course_hub_links` |
 
-`public.courses` is the newest and richest, and Student Hub is **already
+`public.courses` is the newest and richest, and Course Hub is **already
 mid-migration** from `classes` to `courses`: of 464 rows in
 `public.enrollments`, 283 carry a `course_id` and 181 do not.
 
@@ -310,7 +310,7 @@ Every repo sharing this database, by table actually queried:
 | App | `courses` | `classes` | Notes |
 |---|---|---|---|
 | rcs-report-card-tool | 13 files | 0 | Already fully on `courses` |
-| student-hub | 3 calls | **1 call** | `src/app/students/StudentsClient.tsx:141` |
+| course-hub | 3 calls | **1 call** | `src/app/students/StudentsClient.tsx:141` |
 | CourseBoard | 4 files | 0 | Reference implementation |
 | group-maker | 3 | 0 | Owns `group_maker_classes`; links via `source_course_id` |
 | KawaHoot | 1 | 0 | Owns `kawahoot_classes`; independent |
@@ -366,7 +366,7 @@ class sharing that block — three for block H, the same mechanism that produced
 the fabricated 36/36/36 rosters already removed. Adding the missing unique
 constraint would have converted a visible failure into silent duplication.
 
-It also synced the wrong direction, making `rcs` authoritative over Student Hub,
+It also synced the wrong direction, making `rcs` authoritative over Course Hub,
 and derived the school year from `NOW()` rather than from the row, so its
 behaviour changed silently each September.
 
@@ -377,7 +377,7 @@ Any replacement must key on **course**, not block, and run public → rcs.
 | Step | Action | Blocked on |
 |---|---|---|
 | 1 | ~~Add `teaching_group_id` to `courses`; create groups~~ **Done** — 21 groups, all 29 courses assigned | — |
-| 2 | Repoint `student-hub/StudentsClient.tsx:141` to `courses` | Write access to student-hub |
+| 2 | Repoint `course-hub/StudentsClient.tsx:141` to `courses` | Write access to course-hub |
 | 3 | **Delete** 181 legacy `class_id` enrollments — they are duplicates, not gaps (see below) | Confirmation |
 | 4 | Repoint `day_plan_blocks`, `toc_block_plans`, `class_toc_templates` to groups | Steps 1–3 |
 | 5 | Drop `day_plan_blocks.class_name` (denormalised copy of the name) | Step 4 |

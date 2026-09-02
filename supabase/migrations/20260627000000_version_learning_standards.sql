@@ -1,5 +1,5 @@
 -- Moves ownership of public.learning_standards / public.learning_standard_rubrics
--- to student-hub and adds version/supersession support so historical references
+-- to course-hub and adds version/supersession support so historical references
 -- (e.g. rcs.generated_comments, toc day_plans) stay stable when a standard's
 -- wording changes for a new school year.
 --

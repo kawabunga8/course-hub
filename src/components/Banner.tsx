@@ -28,7 +28,7 @@ export default function Banner({ active }: { active: Page }) {
     <header style={{ background: RCS.deepNavy, borderBottom: `4px solid ${RCS.gold}`, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
       <div>
         <div style={{ color: RCS.gold, fontWeight: 900, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' }}>Richmond Christian School</div>
-        <div style={{ color: RCS.white, fontWeight: 900, fontSize: 20 }}>Student Hub</div>
+        <div style={{ color: RCS.white, fontWeight: 900, fontSize: 20 }}>Course Hub</div>
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {LINKS.map(l => (
