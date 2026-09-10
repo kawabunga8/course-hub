@@ -88,6 +88,9 @@ export default function CoursesClient() {
     setLoadStatus('idle');
   }, [selectedYear]);
 
+  // Fetch-on-mount: `load` sets state by design. Restructuring the data
+  // fetching is out of scope for wiring up lint.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const grouped = useMemo(() => {

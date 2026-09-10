@@ -40,7 +40,9 @@ export default function QuartersClient() {
     setStatus('idle');
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [schoolYear]);
+  // `load` is redefined every render; `schoolYear` is the only real trigger.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [schoolYear]);
 
   async function save() {
     setStatus('saving');

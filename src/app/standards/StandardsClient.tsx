@@ -32,7 +32,7 @@ type ImportSummary = {
 };
 type ImportReport = { dryRun: boolean; subjects: Record<string, ImportSummary> };
 
-const IMPORT_SUBJECTS = ['all', 'ADST', 'FA', 'Bible'];
+const IMPORT_SUBJECTS = ['all', 'ADST', 'FA', 'Bible', 'Worship Leadership'];
 const KNOWN_YEARS = ['2025-26', '2026-27'];
 const GRADES = [9, 10, 11, 12];
 const LEVELS: Rubric['level'][] = ['emerging', 'developing', 'proficient', 'extending'];
@@ -92,6 +92,9 @@ export default function StandardsClient() {
     setLoadStatus('idle');
   }, [selectedYear]);
 
+  // Fetch-on-mount: `load` sets state by design. Restructuring the data
+  // fetching is out of scope for wiring up lint.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const grouped = useMemo(() => {
