@@ -4,10 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { currentSchoolYear, resolveCurrentQuarter } from '@/lib/school-year'
 
 // Quarters are stored as free text (the Courses screen offers "e.g. Q1, Q2"), so a
-// course may carry "Q1" or "1" depending on who typed it, while resolveCurrentQuarter
-// returns a number. Comparing those directly meant "Q1" never matched 1 and every
-// quarter-scoped course — ICT 9 Q1, Computer Studies 10 Q3/Q4 — was silently dropped
-// from this endpoint. Compare on digits so any of those spellings agree.
+// course may carry "Q1" or "1" depending on who typed it, and resolveCurrentQuarter
+// returns a label like "Q1". Compare on digits so any of those spellings agree —
+// a mismatch here silently drops every quarter-scoped course (ICT 9 Q1, Computer
+// Studies 10 Q3/Q4, ...) from this endpoint.
 function quarterKey(q: string | number | null): string {
   return String(q ?? '').replace(/[^0-9]/g, '')
 }
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   const [{ data: courses, error: coursesError }, { data: quarters, error: quartersError }] =
     await Promise.all([
       supabase.rpc('current_courses', { p_school_year: schoolYear }),
-      supabase.from('school_quarters').select('id,start_date,end_date').eq('school_year', schoolYear),
+      supabase.from('school_quarters').select('id,label,start_date,end_date').eq('school_year', schoolYear),
     ])
 
   if (coursesError) {
