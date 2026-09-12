@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 
 // Standards are authored as one CSV per subject in Supabase Storage.
 const BUCKET = 'learning-standards-data';
-const SUBJECTS = ['ADST', 'FA', 'Bible', 'Worship Leadership'] as const;
+const SUBJECTS = ['ADST', 'FA', 'Bible', 'Worship Leadership', 'CLE'] as const;
 type Subject = (typeof SUBJECTS)[number];
 
 const LEVELS = ['emerging', 'developing', 'proficient', 'extending'] as const;

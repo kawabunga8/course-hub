@@ -32,7 +32,7 @@ type ImportSummary = {
 };
 type ImportReport = { dryRun: boolean; subjects: Record<string, ImportSummary> };
 
-const IMPORT_SUBJECTS = ['all', 'ADST', 'FA', 'Bible', 'Worship Leadership'];
+const IMPORT_SUBJECTS = ['all', 'ADST', 'FA', 'Bible', 'Worship Leadership', 'CLE'];
 const KNOWN_YEARS = ['2025-26', '2026-27'];
 const GRADES = [9, 10, 11, 12];
 const LEVELS: Rubric['level'][] = ['emerging', 'developing', 'proficient', 'extending'];
