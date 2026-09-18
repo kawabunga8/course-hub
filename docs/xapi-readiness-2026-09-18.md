@@ -71,3 +71,11 @@ and structure were read; no student names. Row counts are exact `count(*)`
   courses or enrolments now fails until a `school_years` row for 2027-28
   exists. That is the intended loud failure; the rollover steps (ARCHITECTURE §6)
   should start by inserting it.
+- ✅ **Functions anyone could call** (found by the security advisor during the
+  fixes). Fixed 2026-09-18 (`20260918160000_restrict_security_definer_functions`):
+  `rcs.upsert_school_quarters` (anyone could rewrite quarter dates) and
+  `sync_class_from_teaching_group` are no longer callable; draft-plan
+  resolution needs sign-in; trigger functions and stray `rcs` copies revoked.
+  The 7 remaining advisor warnings are the TOC public-page functions, which are
+  intended. Still open: enable *Leaked password protection* in Supabase Auth
+  settings.
