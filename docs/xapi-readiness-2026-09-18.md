@@ -33,6 +33,7 @@ and structure were read; no student names. Row counts are exact `count(*)`
    - `public.class_course_links`: **RLS is off**, so anyone with the public key can read and write it.
    - `rcs.reference_documents`: writable by `anon`.
    - `public.classes`: a leftover `Authenticated full access` policy overrides its staff-only policies.
+   - ✅ Fixed 2026-09-18 (`20260918150000_scope_flat_policies_to_staff`): staff read, admin writes, demo read-only; tested as admin, demo and a non-staff signed-in user.
    - `student_marks`, `student_notes`, `courses`, `teaching_groups` and **every `rcs.*` table**, including `generated_comments` (which holds IEP notes): any signed-in account has full access.
    - Old KawaHoot tables in the main project (`games`, `players`, `answers`, `quiz_questions`, `teams`): open to `anon`. Last used 2026-08-05; KawaHoot moved to `KawahootCA` on 2026-08-06.
 5. **KawaHoot identity regressed.** The old `players` table had `student_id`
