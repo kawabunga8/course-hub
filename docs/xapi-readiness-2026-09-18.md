@@ -36,7 +36,7 @@ and structure were read; no student names. Row counts are exact `count(*)`
    - ✅ Fixed 2026-09-18 (`20260918150000_scope_flat_policies_to_staff`): staff read, admin writes, demo read-only; tested as admin, demo and a non-staff signed-in user.
    - `student_marks`, `student_notes`, `courses`, `teaching_groups` and **every `rcs.*` table**, including `generated_comments` (which holds IEP notes): any signed-in account has full access.
    - Old KawaHoot tables in the main project (`games`, `players`, `answers`, `quiz_questions`, `teams`): open to `anon`. Last used 2026-08-05; KawaHoot moved to `KawahootCA` on 2026-08-06.
-5. **KawaHoot identity regressed.** The old `players` table had `student_id`
+5. ✅ **Resolved 2026-09-18** (KawaHoot `supabase/migrations/20260918180000_player_student_identity.sql` + server-verified auto-claim). **KawaHoot identity regressed.** The old `players` table had `student_id`
    (7 linked). The live `KawahootCA.players` (22 players, 214 answers) has
    no `student_id`, only nickname / `real_name`. `answers` there are readable
    by anyone, though tied only to nicknames.

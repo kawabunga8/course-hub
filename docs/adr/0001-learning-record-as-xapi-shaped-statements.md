@@ -97,7 +97,7 @@ done for a reason and the reason is stated; the same rule applies to the data.
 | --- | --- | --- |
 | `assessed` | Report Card Tool, Course Hub | The core of reporting: a judgement against a standard |
 | `observed` | Course Hub | Teacher-witnessed evidence — especially embodied work (a build, a performance) that no screen captures |
-| `answered` | KawaHoot | Formative check-for-understanding; only for players linked to a real student |
+| `answered` | KawaHoot | Formative check-for-understanding; only for players whose sign-in the server verified (`players.identity_verified`), never for roster picks or guests |
 | `voided` | Any writer | Correction |
 
 Where an ADL standard verb exists (`answered`, `voided`), its identifier is
@@ -150,8 +150,8 @@ alongside:
 3. **Scoped row-level security** (§6; migration step 6). Current policies let
    any signed-in account read every student. A detailed learning record must
    not inherit that. **This is a hard gate, not a follow-up.**
-4. **KawaHoot identity linking.** A claimed player needs a `student_id`, not
-   only a `real_name`. KawaHoot's own tables are open to any caller
+4. ✅ **KawaHoot identity linking** (done 2026-09-18). Players carry
+   `student_id` and `identity_verified` in KawahootCA. KawaHoot's own tables are open to any caller
    (`using (true)`), so they can hold game state but must never be treated as
    the learning record.
 

@@ -3,7 +3,10 @@ import { requireApiKey } from '@/lib/require-api-key'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 // GET /api/students?grade_year=11&search=smith
-// Returns students, optionally filtered by grade year or name search.
+// GET /api/students?email=first.last@rcseagles.ca
+// Returns students, optionally filtered by grade year, name search, or an exact
+// (case-insensitive) email. KawaHoot uses the email form to match a student who
+// has just proven their identity by signing in.
 //
 // gender is included for the same reason as on the roster endpoint: consumers
 // derive pronouns from it, and omitting it made them fall back to they/them for
@@ -30,6 +33,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const gradeYear = searchParams.get('grade_year')
   const search = searchParams.get('search')
+  const email = searchParams.get('email')
 
   const supabase = createAdminClient()
 
@@ -40,6 +44,9 @@ export async function GET(req: NextRequest) {
 
   if (gradeYear) query = query.eq('grade_year', Number(gradeYear))
   if (search) query = query.ilike('last_name', `${search}%`)
+  // ilike for case-insensitivity, with its wildcards escaped: '_' is common in
+  // emails and would otherwise match any character.
+  if (email) query = query.ilike('email', email.trim().replace(/[\\%_]/g, (c) => `\\${c}`))
 
   const { data, error } = await query
 
