@@ -35,6 +35,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 Photos are stored in the Supabase Storage bucket **"Student Photos"**.
 
+### AI & student data (if adding an AI feature here)
+Course Hub doesn't call any AI provider today, but it owns sensitive per-student tables (`student_notes`, `student_marks`). Standing RCS rule: Claude is fine for features with no student data in the prompt; anything that would send individual student records/notes to an AI must use a locally-run model instead (see rcs-report-card-tool's `CLAUDE.md` "AI Generation"/"AI Roadmap" sections for the established pattern — env-var-gated Ollama fallback, dynamic model field, explicit `num_ctx`).
+
 ### Supabase client pattern
 - **Browser (client components):** use `getSupabaseClient()` from `src/lib/supabaseClient.ts` — singleton `createBrowserClient` instance, throws if called server-side.
 - **Middleware:** `createServerClient` from `@supabase/ssr` using `req.cookies`.
