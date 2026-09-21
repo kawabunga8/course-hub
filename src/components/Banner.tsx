@@ -8,7 +8,7 @@ const navBtn = { padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(2
 const navBtnActive = { ...navBtn, border: `1px solid ${RCS.gold}`, background: RCS.gold, color: RCS.deepNavy, fontWeight: 900 } as const;
 const navBtnOutline = { padding: '8px 14px', borderRadius: 8, border: `1px solid ${RCS.gold}`, background: 'transparent', color: RCS.gold, fontWeight: 900, fontSize: 13, cursor: 'pointer' } as const;
 
-type Page = 'students' | 'courses' | 'standards' | 'quarters' | 'photos';
+type Page = 'students' | 'courses' | 'standards' | 'quarters' | 'photos' | 'documents';
 
 const LINKS: { page: Page; href: string; label: string }[] = [
   { page: 'students', href: '/students', label: 'Students' },
@@ -16,6 +16,7 @@ const LINKS: { page: Page; href: string; label: string }[] = [
   { page: 'courses', href: '/courses', label: 'Courses' },
   { page: 'standards', href: '/standards', label: 'Learning Standards' },
   { page: 'quarters', href: '/quarters', label: 'School Quarters' },
+  { page: 'documents', href: '/documents', label: 'Documents' },
 ];
 
 export default function Banner({ active }: { active: Page }) {
