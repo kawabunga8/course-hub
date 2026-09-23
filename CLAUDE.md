@@ -22,6 +22,22 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
+## Infrastructure (2026-09-23)
+
+`.env.local` here now points at a **self-hosted local Supabase stack**
+(`http://127.0.0.1:54421`, see `/Volumes/Repos/local-stack`) instead of the
+original cloud project — the old cloud credentials are preserved in
+`.env.local.cloud-backup`, not deleted. This holds real, migrated student
+data as of 2026-09-23. **Read `local-stack/STATUS.md` first** for the full
+current picture before assuming anything about where this app's data
+lives or whether it's reachable publicly.
+
+The Vercel deployment for this project is **paused** (its aliases return
+`503 DEPLOYMENT_PAUSED`) and its **git↔Vercel auto-deploy has been
+disconnected** (`vercel git disconnect`) — `git push` no longer creates
+any new deployment. Re-enabling either is a deliberate action, not
+something that happens as a side effect of normal development.
+
 ## Architecture
 
 **Course Hub** is a Next.js 16 App Router app that serves as the central student data source for a suite of RCS (Richmond Christian School) tools: TOC-Dayplans, RCS Report Card Tool, Kawahoot, and Group Maker. It writes to a shared Supabase database; the other apps read from it.
