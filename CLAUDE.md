@@ -25,8 +25,10 @@ SUPABASE_SERVICE_ROLE_KEY=
 ## Infrastructure (2026-09-23)
 
 `.env.local` here now points at a **self-hosted local Supabase stack**
-(`http://127.0.0.1:54421`, see `/Volumes/Repos/local-stack`) instead of the
-original cloud project — the old cloud credentials are preserved in
+(`http://127.0.0.1:54421`, the `supabase-local/shared` directory — **not**
+the similarly-named `/Volumes/Repos/local-stack` repo, which is a
+different, schema-only stack with no real data) instead of the original
+cloud project — the old cloud credentials are preserved in
 `.env.local.cloud-backup`, not deleted. This holds real, migrated student
 data as of 2026-09-23. **Read `local-stack/STATUS.md` first** for the full
 current picture before assuming anything about where this app's data
