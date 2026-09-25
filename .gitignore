@@ -9,6 +9,8 @@ out/
 .env
 .env.local
 .env*.local
+# backups of old .env.local files (contain real keys)
+.env.local.*-backup
 
 # Vercel
 .vercel
