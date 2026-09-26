@@ -152,26 +152,6 @@ create table if not exists public.group_maker_students (
 create index if not exists group_maker_students_class_id_idx on public.group_maker_students(class_id);
 
 -- =============================================================================
--- KAWAHOOT'S OWN AD-HOC CLASSES (owned by kawahoot; distinct from the
--- real public.classes/public.students above, same reasoning as Group Maker's)
--- =============================================================================
-
-create table if not exists public.kawahoot_classes (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.kawahoot_students (
-  id uuid primary key default gen_random_uuid(),
-  class_id uuid not null references public.kawahoot_classes(id) on delete cascade,
-  full_name text not null,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists kawahoot_students_class_id_idx on public.kawahoot_students(class_id);
-
--- =============================================================================
 -- LEARNING STANDARDS CATALOG (owned by course-hub)
 -- =============================================================================
 
@@ -262,8 +242,3 @@ alter table public.group_maker_classes enable row level security;
 alter table public.group_maker_students enable row level security;
 create policy "Authenticated full access" on public.group_maker_classes for all to authenticated using (true) with check (true);
 create policy "Authenticated full access" on public.group_maker_students for all to authenticated using (true) with check (true);
-
-alter table public.kawahoot_classes enable row level security;
-alter table public.kawahoot_students enable row level security;
-create policy "Authenticated full access" on public.kawahoot_classes for all to authenticated using (true) with check (true);
-create policy "Authenticated full access" on public.kawahoot_students for all to authenticated using (true) with check (true);

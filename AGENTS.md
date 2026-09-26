@@ -46,7 +46,6 @@ SUPABASE_SERVICE_ROLE_KEY=
 ## Migration SQL to run before first use
 ```
 supabase/migrations/20260411000000_student_data_tool.sql  (student_notes, student_marks tables)
-kawahoot-game-tables.sql  (Kawahoot game tables — run once in shared Supabase project)
 ```
 
 ## Health checks

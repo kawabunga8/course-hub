@@ -313,7 +313,7 @@ Every repo sharing this database, by table actually queried:
 | course-hub | 3 calls | **1 call** | `src/app/students/StudentsClient.tsx:141` |
 | CourseBoard | 4 files | 0 | Reference implementation |
 | group-maker | 3 | 0 | Owns `group_maker_classes`; links via `source_course_id` |
-| KawaHoot | 1 | 0 | Owns `kawahoot_classes`; independent |
+| KawaHoot | 1 | 0 | Owns `kawahoot_classes`, now in its own separate database (no longer in this one); independent |
 | toc-dayplans | 0 | 0 | No direct table calls in `src` |
 
 **`public.classes` has exactly one application call site.** Everything else

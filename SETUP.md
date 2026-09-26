@@ -17,10 +17,8 @@ Open your Supabase project SQL editor and run these files **in order**:
 ### 1a. Student data tool (adds notes + marks tables)
 File: `../toc-dayplans/supabase/migrations/20260411000000_student_data_tool.sql`
 
-### 1b. Kawahoot game tables (adds games, players, answers, etc.)
-File: `kawahoot-game-tables.sql` (in this folder)
-
-> These are all `IF NOT EXISTS` — safe to run multiple times.
+> Kawahoot no longer keeps its tables in this shared project. It runs on its own
+> Supabase stack (`supabase-local/kawahoot`), so there is no Kawahoot SQL to run here.
 
 ---
 
