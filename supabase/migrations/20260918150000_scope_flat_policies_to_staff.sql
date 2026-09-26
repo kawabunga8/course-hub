@@ -17,7 +17,6 @@ declare
   tables text[][] := array[
     ['public','courses'], ['public','teaching_groups'],
     ['public','student_marks'], ['public','student_notes'],
-    ['public','kawahoot_classes'], ['public','kawahoot_students'],
     ['rcs','assignment_standards'], ['rcs','assignments'], ['rcs','canonical_data'],
     ['rcs','course_blocks'], ['rcs','course_hub_links'], ['rcs','course_resources'],
     ['rcs','course_subject_areas'], ['rcs','course_unit_sections'], ['rcs','course_units'],
