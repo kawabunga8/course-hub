@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireApiKey } from '@/lib/require-api-key'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { currentSchoolYear, resolveCurrentQuarter } from '@/lib/school-year'
-
-// Quarters are stored as free text (the Courses screen offers "e.g. Q1, Q2"), so a
-// course may carry "Q1" or "1" depending on who typed it, and resolveCurrentQuarter
-// returns a label like "Q1". Compare on digits so any of those spellings agree —
-// a mismatch here silently drops every quarter-scoped course (ICT 9 Q1, Computer
-// Studies 10 Q3/Q4, ...) from this endpoint.
-function quarterKey(q: string | number | null): string {
-  return String(q ?? '').replace(/[^0-9]/g, '')
-}
+import { currentSchoolYear, quarterKey, resolveCurrentQuarter } from '@/lib/school-year'
 
 // GET /api/courses?school_year=2026-27&quarter=3&type=academic
 // Returns courses for the given school year.

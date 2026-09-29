@@ -179,6 +179,12 @@ export default function CoursesClient() {
       <div style={{ background: RCS.midBlue, padding: '10px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ color: RCS.white, margin: 0, fontSize: 18 }}>Courses</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <a
+            href={`/courses/attendance?year=${encodeURIComponent(selectedYear)}`}
+            style={{ background: 'transparent', border: `1px solid ${RCS.gold}`, color: RCS.white, borderRadius: 10, fontWeight: 900, padding: '8px 16px', textDecoration: 'none' }}
+          >
+            TOC attendance sheet
+          </a>
           <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} style={{ padding: 8, border: `1px solid ${RCS.gold}`, borderRadius: 8, background: RCS.paleGold, color: RCS.deepNavy, fontWeight: 900 }}>
             {KNOWN_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -219,7 +225,15 @@ export default function CoursesClient() {
       {grouped.map(([block, rows]) => (
         <div key={block} style={{ marginBottom: 24 }}>
           <div style={{ background: RCS.deepNavy, color: RCS.white, borderBottom: `3px solid ${RCS.gold}`, fontWeight: 900, padding: '8px 12px', borderRadius: '8px 8px 0 0' }}>
-            Block {block}
+            <span>Block {block}</span>
+            {block !== '(no block)' && (
+              <a
+                href={`/courses/attendance?year=${encodeURIComponent(selectedYear)}&block=${encodeURIComponent(block)}`}
+                style={{ float: 'right', color: RCS.gold, fontSize: 13, fontWeight: 800 }}
+              >
+                Attendance sheet →
+              </a>
+            )}
           </div>
           <div style={{ border: `1px solid ${RCS.deepNavy}`, borderTop: 'none', borderRadius: '0 0 8px 8px' }}>
             {rows.map((c) => (

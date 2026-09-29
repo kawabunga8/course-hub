@@ -30,3 +30,22 @@ export function resolveCurrentQuarter(
     .sort((a, b) => b.end_date.localeCompare(a.end_date))
   return past[0]?.label ?? null
 }
+
+// Quarters are stored as free text (the Courses screen offers "e.g. Q1, Q2"), so a
+// course may carry "Q1" or "1" depending on who typed it, and quarter labels look
+// like "Q1". Compare on digits so any of those spellings agree.
+export function quarterKey(q: string | number | null): string {
+  return String(q ?? '').replace(/[^0-9]/g, '')
+}
+
+// The quarter label (e.g. "Q1") whose dates contain `isoDate` (YYYY-MM-DD), or
+// null when no quarter covers it — unlike resolveCurrentQuarter, this does not
+// fall back to the last quarter, since a break or an unset quarter should not
+// quietly pick one.
+export function quarterForDate(
+  quarters: Array<{ label: string; start_date: string | null; end_date: string | null }>,
+  isoDate: string
+): string | null {
+  const q = quarters.find(q => q.start_date && q.end_date && isoDate >= q.start_date && isoDate <= q.end_date)
+  return q?.label ?? null
+}
