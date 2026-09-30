@@ -3,30 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
-import { currentSchoolYear, quarterForDate, quarterKey } from '@/lib/school-year';
+import { currentSchoolYear } from '@/lib/school-year';
+import {
+  loadBlockSections, loadYearCourses, selectBlockCourses,
+  type AttendanceCourse as Course, type AttendanceSection as Section, type Quarter,
+} from '@/lib/attendance';
 import Banner from '@/components/Banner';
 
 // Printable attendance sheet for a TOC: every course that runs in one block,
 // each with its enrolled students. Printed or saved as PDF from the browser —
 // nothing here is uploaded or shared, and it only shows names and grade, never
-// photos, emails, notes or marks.
-
-type Course = {
-  id: string;
-  name: string;
-  block: string | null;
-  grade_years: number[];
-  school_year: string | null;
-  room: string | null;
-  sort_order: number | null;
-  quarters: string[] | null;
-};
-
-type Student = { id: string; first_name: string; last_name: string; grade_year: number | null };
-
-type Section = { course: Course; students: Student[] };
-
-type Quarter = { label: string; start_date: string | null; end_date: string | null };
+// photos, emails, notes or marks. The sheet itself is built in @/lib/attendance,
+// which TOC Day Plans also uses through GET /api/attendance.
 
 const KNOWN_YEARS = ['2025-26', '2026-27'];
 
@@ -46,10 +34,6 @@ function formatDate(iso: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-function byName(a: Student, b: Student) {
-  return a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name);
-}
-
 export default function AttendanceClient() {
   const router = useRouter();
   const params = useSearchParams();
@@ -62,9 +46,12 @@ export default function AttendanceClient() {
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [quarters, setQuarters] = useState<Quarter[]>([]);
-  const [coursesLoaded, setCoursesLoaded] = useState(false);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
+  // The year whose courses are loaded; comparing it with `year` marks a year
+  // change as loading without setting state inside the effect.
+  const [loadedYear, setLoadedYear] = useState<string | null>(null);
+  const coursesLoaded = loadedYear === year;
+  const [loadedSections, setSections] = useState<Section[]>([]);
+  const [rosterStatus, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
   function setParam(key: string, value: string) {
@@ -76,19 +63,18 @@ export default function AttendanceClient() {
   // Courses for the year — drives the block picker.
   useEffect(() => {
     let cancelled = false;
-    setCoursesLoaded(false);
     (async () => {
-      const sb = getSupabaseClient();
-      const [{ data, error }, { data: qs, error: qErr }] = await Promise.all([
-        sb.rpc('current_courses', { p_school_year: year }),
-        sb.from('school_quarters').select('label,start_date,end_date').eq('school_year', year),
-      ]);
-      if (cancelled) return;
-      if (error || qErr) { setError((error ?? qErr)!.message); setStatus('error'); return; }
-      setQuarters((qs ?? []) as Quarter[]);
-      setCourses(((data ?? []) as Course[]).sort((a, b) =>
-        (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)));
-      setCoursesLoaded(true);
+      try {
+        const { courses, quarters } = await loadYearCourses(getSupabaseClient(), year);
+        if (cancelled) return;
+        setQuarters(quarters);
+        setCourses(courses);
+        setLoadedYear(year);
+      } catch (e) {
+        if (cancelled) return;
+        setError((e as { message?: string })?.message ?? String(e));
+        setStatus('error');
+      }
     })();
     return () => { cancelled = true; };
   }, [year]);
@@ -99,90 +85,26 @@ export default function AttendanceClient() {
     return seen;
   }, [courses]);
 
-  const dateQuarter = useMemo(() => quarterForDate(quarters, date), [quarters, date]);
-  // Only filter when a quarter covers the date; otherwise there's nothing to
-  // filter by, and the sheet says so rather than silently dropping courses.
-  const filtering = onlyRunning && !!dateQuarter;
+  const { blockCourses, dateQuarter, filtering, hiddenCount } = useMemo(
+    () => selectBlockCourses(courses, quarters, block, date, onlyRunning),
+    [courses, quarters, block, date, onlyRunning]);
 
-  const blockCourses = useMemo(() => courses.filter(c =>
-    c.block === block &&
-    // A course with no quarters runs all year.
-    (!filtering || !c.quarters?.length || c.quarters.some(q => quarterKey(q) === quarterKey(dateQuarter)))
-  ), [courses, block, filtering, dateQuarter]);
-  const hiddenCount = courses.filter(c => c.block === block).length - blockCourses.length;
+  // With no block chosen, or no courses in it, there's no roster to load.
+  const noRoster = coursesLoaded && (!block || !blockCourses.length);
+  const sections = noRoster ? [] : loadedSections;
+  const status = noRoster && rosterStatus !== 'error' ? 'idle' : rosterStatus;
 
   // Rosters for every course in the chosen block.
   useEffect(() => {
-    if (!coursesLoaded) return;
-    if (!block || !blockCourses.length) {
-      setSections([]);
-      setStatus('idle');
-      return;
-    }
+    if (!coursesLoaded || noRoster) return;
     let cancelled = false;
     (async () => {
       setStatus('loading');
       setError(null);
-      const sb = getSupabaseClient();
       try {
-        // Editing a course creates a new row and supersedes the old one, so
-        // enrollments may still point at an older version. Resolve every row in
-        // this block to the current version it was replaced by.
-        const { data: allRows, error: rowsErr } = await sb
-          .from('courses').select('id,superseded_by').eq('block', block);
-        if (rowsErr) throw rowsErr;
-        const next = new Map<string, string | null>();
-        for (const r of (allRows ?? []) as { id: string; superseded_by: string | null }[]) next.set(r.id, r.superseded_by);
-        const currentIds = new Set(blockCourses.map(c => c.id));
-        const resolve = (id: string): string | null => {
-          let cur: string | null = id;
-          for (let i = 0; cur && i < 50; i++) {
-            if (currentIds.has(cur)) return cur;
-            cur = next.get(cur) ?? null;
-          }
-          return null;
-        };
-        const idToCurrent = new Map<string, string>();
-        for (const id of next.keys()) {
-          const cur = resolve(id);
-          if (cur) idToCurrent.set(id, cur);
-        }
-
-        const { data: enrolls, error: enErr } = await sb
-          .from('enrollments').select('student_id,course_id,school_year')
-          .in('course_id', Array.from(idToCurrent.keys()));
-        if (enErr) throw enErr;
-
-        const courseById = new Map(blockCourses.map(c => [c.id, c]));
-        const studentsByCourse = new Map<string, Set<string>>();
-        for (const e of (enrolls ?? []) as { student_id: string; course_id: string; school_year: string | null }[]) {
-          const cur = idToCurrent.get(e.course_id);
-          if (!cur) continue;
-          // An enrollment with no year only counts when the course itself is
-          // specific to this year; otherwise it can't be placed in a year.
-          const inYear = e.school_year === year || (e.school_year == null && courseById.get(cur)?.school_year === year);
-          if (!inYear) continue;
-          if (!studentsByCourse.has(cur)) studentsByCourse.set(cur, new Set());
-          studentsByCourse.get(cur)!.add(e.student_id);
-        }
-
-        const studentIds = Array.from(new Set(Array.from(studentsByCourse.values()).flatMap(s => Array.from(s))));
-        let studentMap = new Map<string, Student>();
-        if (studentIds.length) {
-          const { data: studs, error: stErr } = await sb
-            .from('students').select('id,first_name,last_name,grade_year').in('id', studentIds);
-          if (stErr) throw stErr;
-          studentMap = new Map(((studs ?? []) as Student[]).map(s => [s.id, s]));
-        }
-
+        const next = await loadBlockSections(getSupabaseClient(), block, blockCourses, year);
         if (cancelled) return;
-        setSections(blockCourses.map(course => ({
-          course,
-          students: Array.from(studentsByCourse.get(course.id) ?? [])
-            .map(id => studentMap.get(id))
-            .filter((s): s is Student => !!s)
-            .sort(byName),
-        })));
+        setSections(next);
         setStatus('idle');
       } catch (e) {
         if (cancelled) return;
@@ -191,7 +113,7 @@ export default function AttendanceClient() {
       }
     })();
     return () => { cancelled = true; };
-  }, [block, blockCourses, year, coursesLoaded]);
+  }, [block, blockCourses, year, coursesLoaded, noRoster]);
 
   // Browsers use the page title as the default "Save as PDF" file name.
   useEffect(() => {
