@@ -1,19 +1,22 @@
 # course-hub — Agent Context
 
 ## What this app is
-The **central student data hub** for all RCS apps. This is the single place where
-students, classes, enrollments, notes, and marks are managed. All other apps read
-from the same Supabase tables this app writes to.
+The central student and course data source for the RCS apps. The other apps
+read what it writes.
+
+This file is operational only and deliberately keeps no table list. It used to,
+and the three docs drifted until they contradicted each other. Owned tables:
+`CLAUDE.md`. Who actually writes what, measured from code: `ARCHITECTURE.md` §5.
 
 ## Tech stack
 - Next.js 16 (App Router) + TypeScript
-- Supabase (shared project with all other RCS apps)
-- Auth: Supabase email/password, protected by middleware + `is_staff()` RLS check
+- Supabase: the local shared stack, `supabase-local/shared` (`http://127.0.0.1:54421`); see `CLAUDE.md` → Infrastructure
+- Auth: Supabase email/password, protected by `src/middleware.ts` + `is_staff()` RLS check
 
 ## Commands
 ```bash
 npm install     # first time only
-npm run dev     # localhost:3000
+npm run dev -- --port 3005   # the port the other RCS apps expect
 npm run build   # production build
 npm run lint    # ESLint check
 ```
@@ -21,20 +24,13 @@ npm run lint    # ESLint check
 ## Key files
 ```
 src/app/students/StudentsClient.tsx   ← main UI (directory, edit, enroll, notes, marks)
+src/app/courses/CoursesClient.tsx     ← courses per school year
+src/app/api/*/route.ts                ← read API for the other apps (API key: src/lib/require-api-key.ts)
 src/app/login/LoginClient.tsx         ← auth
 src/lib/supabaseClient.ts             ← browser Supabase client
-middleware.ts                         ← protects all routes except /login and /auth
+src/lib/supabase/admin.ts             ← server client, API routes only
+src/middleware.ts                     ← protects all routes except /login, /auth/callback and /api
 ```
-
-## Database tables owned by this app
-All in the `public` schema:
-- `students` — id, first_name, last_name, photo_url, grade_year, gender, student_number
-- `student_notes` — id, student_id, note, created_at, updated_at
-- `student_marks` — id, student_id, subject, mark, quarter, class_id, note
-
-Tables this app reads but shares with toc-dayplans:
-- `classes` — courses/class definitions
-- `enrollments` — student ↔ class membership
 
 ## Required env vars
 ```
@@ -43,10 +39,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-## Migration SQL to run before first use
-```
-supabase/migrations/20260411000000_student_data_tool.sql  (student_notes, student_marks tables)
-```
+## Migrations
+New files in `supabase/migrations/` are applied by hand in the shared stack's
+Supabase Studio SQL editor. Nothing runs them automatically, and code that needs
+a new column shows "column ... does not exist" until the migration is applied.
 
 ## Health checks
 - `npm run build` exits 0
@@ -59,6 +55,5 @@ supabase/migrations/20260411000000_student_data_tool.sql  (student_notes, studen
 - **Empty student list** — either no students added yet, or RLS policy is blocking anon reads
 
 ## Role in the ecosystem
-- **Writes:** students, student_notes, student_marks, enrollments
-- **Never writes:** Kawahoot game tables (games, players, answers, etc.)
-- **Other apps depend on this:** always update student data here, never directly in other apps
+Other apps depend on this data: change students, enrollments and courses here,
+never from another app.

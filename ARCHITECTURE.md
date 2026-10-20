@@ -5,7 +5,16 @@ school years, new timetables and new students each year — without rewriting
 history or duplicating people.
 
 This document describes the **target** model and the gap between it and today.
-Nothing here has been applied beyond `rcs.course_blocks`.
+
+> **Status, 2026-10-20** — checked against the code and the 2026-09-23 schema
+> snapshot (`supabase-local/shared/schema-dump.sql`), not the live database.
+> Much of §2–§4 now exists: `public.school_years` (with `records_from` /
+> `records_note`), `public.course_catalog` (stable `code`, `status` active /
+> dormant / retired) linked by `courses.course_code`, `public.teaching_groups`,
+> `school_quarters.school_year`, and `enrollments.grade_year`.
+> `public.courses` plays the role of `COURSE_OFFERINGS`. §1 describes the
+> database before that work. §5 is the current, measured picture of who
+> writes what.
 
 ---
 
@@ -250,88 +259,46 @@ as zeros rather than excluded.
 
 ## 5. Keeping Course Hub the single source
 
-Several apps share this database. Course data currently exists in **three**
-places, and they disagree:
+**The rule: every fact has exactly one writer.** Course Hub writes students,
+enrollments, courses and the tables that organise them. Other apps read them,
+directly or through Course Hub's API, or receive a copy that the database
+maintains for them. Two writers means two sets of assumptions drifting apart
+with nothing forcing them to agree.
 
-| Table | Rows | Created | Read by |
-|---|---|---|---|
-| `public.classes` | 35 | Feb–Jun 2026 | Day plans, TOC, group maker, kawahoot, `public.enrollments` |
-| `public.courses` | 32 | 27 Jun 2026 | CourseBoard, group maker (`source_course_id`) |
-| `rcs.courses` | 25 | — | Report card tool; CourseBoard via `course_hub_links` |
+### Who writes what — measured 2026-10-20
 
-`public.courses` is the newest and richest, and Course Hub is **already
-mid-migration** from `classes` to `courses`: of 464 rows in
-`public.enrollments`, 283 carry a `course_id` and 181 do not.
+Measured from code (every `.from(...)` insert, update, upsert and delete in
+each repo) and from the triggers in the 2026-09-23 schema snapshot. Re-measure
+after changes rather than trusting this table.
 
-### The drift is live, not theoretical
+| Fact | Owner | Written by, in practice |
+|---|---|---|
+| `students` | Course Hub | Course Hub only. The Report Card Tool's Students page also added students and edited gender and grade until 2026-10-20; it is now read-only. |
+| `enrollments` | Course Hub | Course Hub only. That same Report Card Tool page deleted and re-inserted each saved student's enrollments for the year, dropping `grade_year`, until 2026-10-20. TOC Day Plans' class-lists page inserted enrollments until it was deleted on 2026-09-24 (toc-dayplans `1c28d5e`). |
+| `courses`, `school_quarters`, `student_notes`, `student_marks` | Course Hub | Course Hub (`/courses`, `/quarters`, `/students`). |
+| `learning_standards`, `learning_standard_rubrics`, `school_documents` | Course Hub | Course Hub (`/standards`, `/documents`). The Report Card Tool's standards editor writes its own `rcs.learning_standards`, not these. |
+| `teaching_groups`, `course_catalog`, `school_years` | Course Hub | **No app.** Course Hub has no screen for them, so they change only by SQL. See "What's left". |
+| `classes` | Nobody — generated | Rebuilt from each teaching group and its courses by `sync_class_from_teaching_group` (triggers `courses_sync_class`, `teaching_groups_sync`). See below. |
+| `enrollments.class_id` | Nobody — generated | `trg_enrollments_fill_course_class` derives it from `course_id`, which is authoritative. |
+| `rcs.enrollments` for linked courses | Nobody — generated | `trg_sync_rcs_enrollment` copies public → rcs, keyed on course through `rcs.course_hub_links`. The Report Card Tool's "link course" action also backfills once, into its own schema. |
+| `rcs.*` (courses, comments, surveys, …) | Report Card Tool | Report Card Tool: its own reporting setup, tied to Course Hub courses through `course_hub_links`. |
+| `class_course_links` | TOC Day Plans | TOC only (`src/app/api/admin/classes/route.ts`). It repeats what `teaching_group_id` already records. |
 
-`public.classes` still contains the `Computer Studies 10 Q1/Q2` row for
-2025-26 that was deleted from `public.courses` — a course that never ran.
-The two tables disagreed within minutes of the correction.
+How the other apps read:
 
-They also disagree structurally. `classes` collapses what `courses` splits:
+- **Group Maker and KawaHoot** make no direct table calls. They use Course
+  Hub's API (`/api/courses`, `/api/courses/[id]/roster`, `/api/students`),
+  which requires an API key (`src/lib/require-api-key.ts`). KawaHoot's game
+  data lives in its own database.
+- **Report Card Tool** reads `students`, `courses` and `enrollments` directly,
+  and the API through its `app/api/course-hub/*` routes.
+- **TOC Day Plans** reads `classes`, `courses` and `school_quarters` directly,
+  and the attendance sheet through `/api/attendance`.
 
-| `public.classes` | `public.courses` |
-|---|---|
-| `Band 10-12` (one row) | `Band 10`, `Band 11`, `Band 12` |
-| `Computer Programming 11/12` | `CP 11`, `CP 12` |
-| `Worship Leadership 11/12` | `WL 11`, `WL 12` |
-| `Career Class 10`, block `CL` | `Career Life Education 10`, block `CLE` |
+### `classes` stays, as a generated and locked table
 
-This is why four `rcs.courses` rows looked like orphans: they were seeded from
-`classes` naming, not `courses` naming.
-
-### 181 enrollments are currently unattributable
-
-Every unmigrated enrollment points at a `classes` row with a **null
-school_year**, so it belongs to no year at all:
-
-| Class | Students stranded |
-|---|---|
-| Concert Band 9 | 36 |
-| Senior Concert Band | 28 |
-| Computer Studies 10 | 26 |
-| Worship Leadership 11/12 | 22 |
-| Career Life Education 10 | 20 |
-| Biblical Perspectives 10 (C) | 18 |
-| Computer Programming 11/12 | 16 |
-| Biblical Perspectives 10 (D) | 15 |
-
-These are real rosters. They are invisible to any app that filters by year.
-
-Note the collapsed rows can still be split mechanically: `public.students`
-carries `grade_year`, so a `Senior Concert Band` enrollment resolves to
-`Band 10`/`11`/`12` by the student's own grade.
-
-### Consumer audit
-
-Every repo sharing this database, by table actually queried:
-
-| App | `courses` | `classes` | Notes |
-|---|---|---|---|
-| rcs-report-card-tool | 13 files | 0 | Already fully on `courses` |
-| course-hub | 3 calls | **1 call** | `src/app/students/StudentsClient.tsx:141` |
-| CourseBoard | 4 files | 0 | Reference implementation |
-| group-maker | 3 | 0 | Owns `group_maker_classes`; links via `source_course_id` |
-| KawaHoot | 1 | 0 | Owns `kawahoot_classes`, now in its own separate database (no longer in this one); independent |
-| toc-dayplans | 0 | 0 | No direct table calls in `src` |
-
-**`public.classes` has exactly one application call site.** Everything else
-referencing it does so through foreign keys: `enrollments.class_id` (444),
-`day_plan_blocks.class_id` (138), `toc_block_plans.class_id` (125),
-`class_toc_templates.class_id` (14).
-
-### Canonical table: `public.courses`
-
-Newest, richest, and already used by five of six apps. `rcs.courses` is
-superseded by `course_hub_links`; `public.classes` is superseded outright —
-with one caveat below.
-
-### The caveat: `classes` and `courses` are not the same granularity
-
-They are not pure duplicates. `classes` models the **combined teaching block** —
-what actually happens in one room at one time — while `courses` models the
-**reporting unit** used for report cards:
+`classes` models the **teaching block**, what happens in one room at one time.
+`courses` models the **reporting unit** used for report cards:
 
 | `public.classes` (taught together) | `public.courses` (reported separately) |
 |---|---|
@@ -339,52 +306,44 @@ what actually happens in one room at one time — while `courses` models the
 | `Computer Programming 11/12` | `CP 11`, `CP 12` |
 | `Worship Leadership 11/12` | `WL 11`, `WL 12` |
 
-Enrolment counts corroborate this: `Senior Concert Band` carries 28 students in
-`public.enrollments`, against 30 across `Band 10`+`11`+`12` in `rcs` — the same
-cohort, grouped two ways.
+A teaching group records which courses are taught together, and the database
+keeps one `classes` row per group. `trg_classes_guard` rejects any change to
+the mirrored columns (`name`, `block_label`, `active_quarters`, `school_year`,
+`teaching_group_id`) that doesn't come from that sync, with an error telling
+the caller to change the course or its teaching group instead.
 
-**Deleting `classes` outright would lose that grouping**, which 138 day-plan
-blocks and 125 TOC plans depend on. A day plan for block B is about one combined
-class, not three.
+So `classes` is no longer a competing source of truth, and **it is kept**
+(decided 2026-10-20). This replaces the earlier plan to repoint TOC to teaching
+groups and drop it. Day plans hang off `classes`: at last count
+`day_plan_blocks.class_id` (138), `toc_block_plans.class_id` (125) and
+`class_toc_templates.class_id` (14). Dropping it would mean rewriting those and
+TOC's RPCs without changing who owns anything.
 
-The fix is to express the grouping *inside* the canonical table rather than in a
-second one — a `teaching_group_id` on `courses`, self-referencing or pointing at
-a small `teaching_groups` table. Day plans then reference a group, report cards
-reference individual courses, and there is still exactly one source of truth.
+Columns the guard lets apps write:
 
-### Removed: the rcs → public enrollment trigger
+- `toc_template_id`: TOC's pointer to the class's template (toc-dayplans
+  ADR-0005). TOC-owned data that happens to live on this table.
+- `grade_level`: set in TOC's admin. It repeats `courses.grade_years`; see
+  "What's left".
+- `room`, `sort_order`: copied from the group's courses on every sync, so an
+  edit made on `classes` is overwritten the next time a course in the group
+  changes. Change them on the course.
 
-`sync_rcs_enrollment` on `rcs.enrollments` has been dropped. It was broken in a
-way that blocked writes rather than corrupting them: it used
-`ON CONFLICT (class_id, student_id)` while `public.enrollments` has no unique
-constraint on those columns, so every insert failed with SQLSTATE `42P10` and
-rolled back — the report card tool could not save an enrollment at all.
+### The enrollment sync, then and now
 
-Repairing that error alone would have been worse than leaving it. The function
-resolved its targets **by block**, so one rcs enrollment would write into every
-class sharing that block — three for block H, the same mechanism that produced
-the fabricated 36/36/36 rosters already removed. Adding the missing unique
-constraint would have converted a visible failure into silent duplication.
-
-It also synced the wrong direction, making `rcs` authoritative over Course Hub,
-and derived the school year from `NOW()` rather than from the row, so its
-behaviour changed silently each September.
-
-Any replacement must key on **course**, not block, and run public → rcs.
-
-### Decommissioning sequence
-
-| Step | Action | Blocked on |
-|---|---|---|
-| 1 | ~~Add `teaching_group_id` to `courses`; create groups~~ **Done** — 21 groups, all 29 courses assigned | — |
-| 2 | Repoint `course-hub/StudentsClient.tsx:141` to `courses` | Write access to course-hub |
-| 3 | **Delete** 181 legacy `class_id` enrollments — they are duplicates, not gaps (see below) | Confirmation |
-| 4 | Repoint `day_plan_blocks`, `toc_block_plans`, `class_toc_templates` to groups | Steps 1–3 |
-| 5 | Drop `day_plan_blocks.class_name` (denormalised copy of the name) | Step 4 |
-| 6 | Drop `public.classes` | Steps 2–5 |
-| 7 | Add FKs from every course reference to `public.courses` | Step 6 |
+The original `sync_rcs_enrollment` sat on `rcs.enrollments` and copied rcs →
+public. It was dropped. It resolved its targets **by block**, so one rcs
+enrollment would land in every class sharing that block (the mechanism behind
+the fabricated 36/36/36 block H rosters in §4). Its `ON CONFLICT` had no
+matching unique constraint, so every insert failed, and it took the school year
+from `NOW()`. The replacement, same function name, is on `public.enrollments`.
+It runs public → rcs and keys on **course** through `rcs.course_hub_links`.
 
 ### The 181 legacy enrollments are duplicates, not gaps
+
+These are the `public.enrollments` rows with a `class_id` but no `course_id`.
+Each points at a legacy `classes` row with a null `school_year`, so no
+year-filtered view shows them.
 
 The obvious reading of "283 of 464 migrated" is that 181 rows still need
 moving. They do not. Comparing (student, block) pairs across both sets:
@@ -403,6 +362,50 @@ same student in the same block. Migrating them would not fill a gap — it would
 This matters beyond tidiness: any count over `public.enrollments` that does not
 filter on `course_id is not null` is currently inflated. The four extra migrated
 pairs are enrollments added after the migration ran.
+
+### What's left (2026-10-20)
+
+In order; each step is safe on its own.
+
+1. **A teaching-group screen in Course Hub**, before the 2027-28 timetable.
+   Until then a new course needs its teaching group made in SQL. Without one,
+   the database builds no `classes` row for it, TOC can't see it, and its
+   enrollments get no `class_id`. `school_years` and `course_catalog` have the
+   same gap, less urgently.
+2. **Grade in one place.** TOC's `classes.grade_level` should come from the
+   group's courses instead of being typed in TOC. Separately, enrollments added
+   in Course Hub (`toggleEnrollment` and `toggleEnrollmentInline` in
+   `StudentsClient.tsx`) are inserted without `grade_year`, and the fill
+   trigger doesn't set it, so new rows lack the per-year grade §2 relies on.
+3. **TOC: replace `class_course_links`** with a join on `teaching_group_id`,
+   then drop the table.
+4. **Delete the legacy `class_id`-only enrollments**, after a backup
+   (`supabase-local/backup-local-db.sh`) and both checks below.
+5. **Then make `enrollments.course_id` NOT NULL**, so course is authoritative
+   by constraint, not only by trigger.
+6. **Drop `rcs.students`** (test data, §1 #5) once nothing references it. No
+   Report Card Tool code reads it (checked 2026-10-20); check foreign keys
+   first.
+
+Checks before step 4, in the shared stack's Supabase Studio:
+
+```sql
+-- legacy rows remaining (was 181)
+select count(*) from public.enrollments where course_id is null;
+
+-- legacy rows with no migrated twin for the same student and block (must be 0)
+select count(*)
+from public.enrollments l
+join public.classes lc on lc.id = l.class_id
+where l.course_id is null
+  and not exists (
+    select 1
+    from public.enrollments m
+    join public.courses mc on mc.id = m.course_id
+    where m.student_id = l.student_id
+      and lc.block_label in (mc.block, mc.block_label)
+  );
+```
 
 ---
 
