@@ -277,6 +277,7 @@ after changes rather than trusting this table.
 | `enrollments` | Course Hub | Course Hub only. That same Report Card Tool page deleted and re-inserted each saved student's enrollments for the year, dropping `grade_year`, until 2026-10-20. TOC Day Plans' class-lists page inserted enrollments until it was deleted on 2026-09-24 (toc-dayplans `1c28d5e`). |
 | `courses`, `school_quarters`, `student_notes`, `student_marks` | Course Hub | Course Hub (`/courses`, `/quarters`, `/students`). |
 | `learning_standards`, `learning_standard_rubrics`, `school_documents` | Course Hub | Course Hub (`/standards`, `/documents`). The Report Card Tool's standards editor writes its own `rcs.learning_standards`, not these. |
+| `flex_days`, `flex_rooms` | Course Hub | Course Hub. `flex_rooms` from `/flex`; `flex_days` only by importing the VP office's flex schedule sheet (`supabase-local/shared/data/`, outside git because it names staff). Read by other apps through `/api/flex`. |
 | `teaching_groups`, `course_catalog`, `school_years` | Course Hub | **No app.** Course Hub has no screen for them, so they change only by SQL. See "What's left". |
 | `classes` | Nobody — generated | Rebuilt from each teaching group and its courses by `sync_class_from_teaching_group` (triggers `courses_sync_class`, `teaching_groups_sync`). See below. |
 | `enrollments.class_id` | Nobody — generated | `trg_enrollments_fill_course_class` derives it from `course_id`, which is authoritative. |
