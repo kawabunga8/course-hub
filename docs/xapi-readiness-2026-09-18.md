@@ -21,6 +21,8 @@ and structure were read; no student names. Row counts are exact `count(*)`
 
 1. ✅ **Resolved 2026-09-18** (4 levels + `plus` flag; IE = insufficient evidence, no level; see ADR-0001). **Two level vocabularies.** Rubrics use 4 levels; report cards also use
    `Emerging+`, `Proficient+`, `Extending+` and `IE`, and never `Developing`.
+   *(Update 2026-10-24: report cards now also use `Developing`, `Developing+` and
+   `Not Yet Meeting`; see ADR-0001.)*
    A statement's `result_level` needs one agreed list. Decide whether `+`
    is a separate level or a modifier, and how `IE` (insufficient evidence) is
    recorded (probably as *no* statement, or a result with no level).

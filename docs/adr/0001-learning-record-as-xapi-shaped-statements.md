@@ -48,7 +48,7 @@ A new `public.learning_statements` table. Each row is one statement:
 | Actor | `student_id` (FK → `students`) | the student |
 | Verb | `verb` (from a controlled list — see below) | `assessed` |
 | Object | `object_type`, `object_id` | `learning_standard`, the versioned standard row for `prototype_and_test` |
-| Result | `result_level`, `result_plus`, `result_insufficient_evidence`, `result_score`, `result_success`, `result_note` | Proficient, plus = yes |
+| Result | `result_level`, `result_plus`, `result_insufficient_evidence`, `result_not_yet_meeting`, `result_score`, `result_success`, `result_note` | Proficient, plus = yes |
 | Context | `course_id` (later `offering_id`), `school_year`, `quarter`, `source_app`, `recorded_by` | CS 10 · 2026-27 · Q1 · report-card-tool · Kawamura |
 | Evidence | `evidence_path` (Storage) | a photo of the prototype |
 | Time | `occurred_at` (when it happened), `stored_at` (when it was recorded) | |
@@ -66,8 +66,15 @@ A new `public.learning_statements` table. Each row is one statement:
 - **IE (insufficient evidence)** is stored as `result_insufficient_evidence = true`
   with no level. It is a real statement: the teacher looked and could not
   judge, which is different from never having assessed.
-- **Developing** stays available. RCS report cards do not currently use it, but
-  other evidence (e.g. `observed`) may.
+- **Not Yet Meeting** *(added 2026-10-24)* is stored as
+  `result_not_yet_meeting = true` with no level. The RCS Assessment policy
+  scores it at 40% (an F), below Emerging at 52%, and the rubrics have no text
+  for it, so it is a flag like IE rather than a fifth level. It differs from IE:
+  there was enough evidence to judge, and it fell short. A statement sets at
+  most one of `result_level`, `result_insufficient_evidence` and
+  `result_not_yet_meeting`.
+- **Developing** is used by RCS report cards (Developing and Developing+), as
+  well as by other evidence (e.g. `observed`).
 
 The columns are ordinary database columns, so they can be queried and
 protected with row-level security. A full xAPI JSON statement can be generated
