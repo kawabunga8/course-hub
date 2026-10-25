@@ -26,7 +26,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = requireApiKey(req)
+  const auth = requireApiKey(req, 'roster')
   if (auth) return auth
 
   const { id } = await params

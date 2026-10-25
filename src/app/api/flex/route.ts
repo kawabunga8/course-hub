@@ -18,7 +18,7 @@ type FlexDayRow = { day: string; school_year: string; heading: string; details: 
 type FlexRoomRow = { school_year: string; flex_letter: string; room: string; note: string | null }
 
 export async function GET(req: NextRequest) {
-  const auth = requireApiKey(req)
+  const auth = requireApiKey(req, 'flex')
   if (auth) return auth
 
   const params = req.nextUrl.searchParams

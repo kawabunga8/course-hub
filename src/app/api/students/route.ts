@@ -27,7 +27,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // PIPA: returns only fields needed for teaching use. No DOB, address, or
 // other sensitive fields. Consumers must not store this data permanently.
 export async function GET(req: NextRequest) {
-  const auth = requireApiKey(req)
+  const auth = requireApiKey(req, 'students')
   if (auth) return auth
 
   const { searchParams } = req.nextUrl
