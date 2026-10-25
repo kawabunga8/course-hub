@@ -227,6 +227,12 @@ alter table public.learning_standards enable row level security;
 alter table public.learning_standard_rubrics enable row level security;
 alter table public.courses enable row level security;
 
+-- SUPERSEDED: the "Authenticated full access" policies below are the ORIGINAL
+-- open policies. Migrations 20260918120000, 20260918150000 and 20260921120000
+-- replaced them with staff-only is_staff()/can_write() policies. Do not apply
+-- this section to a database after those migrations: it would reopen access to
+-- any signed-in account. Apply the migrations in supabase/migrations instead.
+--
 -- Authenticated users (staff) can read and write all tables.
 -- The app requires login via middleware; these policies enforce the same rule at the DB layer.
 create policy "Authenticated full access" on public.students      for all to authenticated using (true) with check (true);

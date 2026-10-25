@@ -94,6 +94,16 @@ export async function POST(req: Request) {
   const target = String(body?.subject ?? 'all');
   const dryRun = body?.dryRun !== false; // default to a preview; writing must be asked for
 
+  // Signed in is not enough: previewing needs staff, writing needs can_write()
+  // (the demo account is read-only). RLS would block the writes anyway; this
+  // stops non-staff accounts from even previewing, and fails before any write.
+  const { data: isStaff } = await supabase.rpc('is_staff');
+  if (isStaff !== true) return NextResponse.json({ error: 'Staff only' }, { status: 403 });
+  if (!dryRun) {
+    const { data: canWrite } = await supabase.rpc('can_write');
+    if (canWrite !== true) return NextResponse.json({ error: 'Your account cannot write' }, { status: 403 });
+  }
+
   if (target !== 'all' && !isSubject(target)) {
     return NextResponse.json({ error: `Unknown subject: ${target}` }, { status: 400 });
   }
