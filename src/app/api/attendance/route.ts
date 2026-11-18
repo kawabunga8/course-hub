@@ -15,7 +15,7 @@ import { loadBlockSections, loadYearCourses, selectBlockCourses } from '@/lib/at
 // PIPA: names and grade only — no email, gender, photo, notes or marks. RCS
 // approved sending these class lists to substitutes (2026-09-30).
 export async function GET(req: NextRequest) {
-  const auth = requireApiKey(req)
+  const auth = requireApiKey(req, 'attendance')
   if (auth) return auth
 
   const u = new URL(req.url)

@@ -6,7 +6,7 @@ import { currentSchoolYear } from '@/lib/school-year'
 // GET /api/quarters?school_year=2026-27
 // Returns school quarters for the given year, ordered by start date.
 export async function GET(req: NextRequest) {
-  const auth = requireApiKey(req)
+  const auth = requireApiKey(req, 'quarters')
   if (auth) return auth
 
   const schoolYear = req.nextUrl.searchParams.get('school_year') || currentSchoolYear()

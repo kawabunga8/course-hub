@@ -78,8 +78,17 @@ Course Hub doesn't call any AI provider today, but it owns sensitive per-student
 - **Middleware:** `createServerClient` from `@supabase/ssr` using `req.cookies`.
 - **Server (API routes only):** `createAdminClient()` from `src/lib/supabase/admin.ts`, after `requireApiKey` from `src/lib/require-api-key.ts`. Pages still fetch client-side.
 
+### Inter-app API keys
+`requireApiKey(req, scope)` in `src/lib/require-api-key.ts` guards every `/api/*` read route, each with its own scope: `students`, `courses`, `roster`, `quarters`, `flex`, `attendance`. Consumers send `Authorization: Bearer <key>`.
+
+- `COURSE_HUB_API_KEYS` holds per-app keys as `name:key,name:key`. Add brackets to limit an app to some endpoints, joined with `+`: `kawahoot[students+courses+roster]:KEY1,toc[attendance]:KEY2`. No brackets means every endpoint. Rotating or revoking one app is a one-entry edit.
+- `COURSE_HUB_API_KEY` is the original shared key. It is still accepted for every endpoint, so apps can move to their own key one at a time. Remove it once they all have.
+- A bad or missing key gets `401`, a valid key outside its scope gets `403`, and 20 failed attempts a minute from one address get `429`. The throttle is in memory and per instance, so it slows guessing rather than hard-limiting it.
+- Every call logs one JSON line (`app`, `scope`, `path`, `outcome`, `ip`), never the key or any response data. Adding an endpoint means adding a scope to `Scope`.
+- Keys are compared as SHA-256 digests with `timingSafeEqual`. The client address comes from `x-forwarded-for`, which is only trustworthy behind a proxy that sets it.
+
 ### Auth flow
-`src/middleware.ts` guards all routes except `/login`, `/auth/callback`, and `/api/*`. Unauthenticated requests redirect to `/login?next=<path>`. After sign-in or password reset, `/auth/callback/page.tsx` handles the `onAuthStateChange` event and redirects accordingly.
+`src/middleware.ts` guards all routes except `/login`, `/auth/callback`, and `/api/*`, validating the session with `getUser()`. Unauthenticated requests redirect to `/login?next=<path>`. After sign-in or password reset, `/auth/callback/page.tsx` handles the `onAuthStateChange` event and redirects accordingly.
 
 ### Page structure
 Each route uses a thin Server Component page that wraps a `*Client.tsx` component in `<Suspense>`. All business logic and data fetching lives in the client components.

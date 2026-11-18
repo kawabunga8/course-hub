@@ -18,7 +18,7 @@ import { currentSchoolYear, quarterKey, resolveCurrentQuarter } from '@/lib/scho
 //
 // Consuming apps: KawaHoot, group-maker, toc-dayplans, report-card-tool.
 export async function GET(req: NextRequest) {
-  const auth = requireApiKey(req)
+  const auth = requireApiKey(req, 'courses')
   if (auth) return auth
 
   const { searchParams } = req.nextUrl
