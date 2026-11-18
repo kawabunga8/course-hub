@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import Banner from '@/components/Banner';
+import { PRONOUN_OPTIONS, defaultPronouns } from '@/lib/pronouns';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ type Student = {
   grade_year_reference: string | null;
   graduated_year: string | null;
   gender: string | null;
+  pronouns: string | null;
   student_number: string | null;
   school_year: string | null;
   email: string | null;
@@ -77,6 +79,7 @@ function isAlumnusBy(graduatedYear: string | null, selectedYear: string): boolea
 const KNOWN_YEARS = ['2025-26', '2026-27'];
 const GRADE_YEARS = [9, 10, 11, 12];
 const GENDERS = ['male', 'female', 'non-binary'];
+const PRONOUNS = PRONOUN_OPTIONS;
 const STUDENT_PHOTOS_BUCKET = 'Student Photos';
 
 // Same convention used across the other RCS apps: red = not set, blue = male, pink = female, green = non-binary.
@@ -128,7 +131,7 @@ export default function StudentsClient() {
 
   // ── Add student form ───────────────────────────────────────────────────────
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ first_name: '', last_name: '', grade_year: '', gender: '', student_number: '', school_year: '', email: '' });
+  const [addForm, setAddForm] = useState({ first_name: '', last_name: '', grade_year: '', gender: '', pronouns: '', student_number: '', school_year: '', email: '' });
   const [addStatus, setAddStatus] = useState<'idle' | 'working' | 'error'>('idle');
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -178,7 +181,7 @@ export default function StudentsClient() {
     try {
       const sb = getSupabaseClient();
       const [sr, cr, cor, er] = await Promise.all([
-        sb.from('students').select('id,first_name,last_name,photo_url,grade_year,grade_year_reference,gender,student_number,school_year,email,graduated_year')
+        sb.from('students').select('id,first_name,last_name,photo_url,grade_year,grade_year_reference,gender,pronouns,student_number,school_year,email,graduated_year')
           .order('last_name').order('first_name'),
         sb.from('classes').select('id,name,block_label,sort_order')
           .order('sort_order', { ascending: true, nullsFirst: false }),
@@ -229,7 +232,7 @@ export default function StudentsClient() {
     if (!selectedId) { setEditForm(null); return; }
     const s = students.find(s => s.id === selectedId);
     if (!s) return;
-    setEditForm({ first_name: s.first_name, last_name: s.last_name, grade_year: s.grade_year, gender: s.gender, student_number: s.student_number, school_year: s.school_year, email: s.email, graduated_year: s.graduated_year });
+    setEditForm({ first_name: s.first_name, last_name: s.last_name, grade_year: s.grade_year, gender: s.gender, pronouns: s.pronouns, student_number: s.student_number, school_year: s.school_year, email: s.email, graduated_year: s.graduated_year });
     setEditStatus('idle'); setEditError(null);
     setSignedUrl(null); setUploadStatus('idle'); setUploadError(null);
     setEnrollments([]); setNotes([]); setMarks([]);
@@ -354,13 +357,13 @@ export default function StudentsClient() {
         first_name: addForm.first_name.trim(), last_name: addForm.last_name.trim(),
         grade_year: addForm.grade_year ? parseInt(addForm.grade_year) : null,
         grade_year_reference: addForm.grade_year ? selectedYear : null,
-        gender: addForm.gender || null, student_number: addForm.student_number.trim() || null,
+        gender: addForm.gender || null, pronouns: addForm.pronouns || null, student_number: addForm.student_number.trim() || null,
         school_year: addForm.school_year.trim() || null,
         email: addForm.email.trim().toLowerCase() || null,
       }).select().single();
       if (error) throw error;
       setStudents(prev => [...prev, data as Student].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name)));
-      setShowAdd(false); setAddForm({ first_name: '', last_name: '', grade_year: '', gender: '', student_number: '', school_year: '', email: '' });
+      setShowAdd(false); setAddForm({ first_name: '', last_name: '', grade_year: '', gender: '', pronouns: '', student_number: '', school_year: '', email: '' });
       setAddStatus('idle'); setSelectedId((data as Student).id);
     } catch (e: any) { setAddStatus('error'); setAddError(humanizeError(e)); }
   }
@@ -370,7 +373,7 @@ export default function StudentsClient() {
     if (!editForm.first_name?.trim() || !editForm.last_name?.trim()) { setEditError('First and last name are required.'); return; }
     setEditStatus('working'); setEditError(null);
     try {
-      const payload = { first_name: editForm.first_name?.trim() || '', last_name: editForm.last_name?.trim() || '', grade_year: editForm.grade_year ?? null, gender: editForm.gender ?? null, student_number: editForm.student_number?.trim() || null, school_year: editForm.school_year?.trim() || null, email: editForm.email?.trim().toLowerCase() || null, graduated_year: editForm.graduated_year ?? null };
+      const payload = { first_name: editForm.first_name?.trim() || '', last_name: editForm.last_name?.trim() || '', grade_year: editForm.grade_year ?? null, gender: editForm.gender ?? null, pronouns: editForm.pronouns || null, student_number: editForm.student_number?.trim() || null, school_year: editForm.school_year?.trim() || null, email: editForm.email?.trim().toLowerCase() || null, graduated_year: editForm.graduated_year ?? null };
       const { error } = await getSupabaseClient().from('students').update(payload).eq('id', selectedId);
       if (error) throw error;
       setStudents(prev => prev.map(s => s.id === selectedId ? { ...s, ...payload } : s));
@@ -765,6 +768,13 @@ export default function StudentsClient() {
                 </select>
               </label>
               <label style={S.fieldWrap}>
+                <span style={S.label}>Pronouns</span>
+                <select value={addForm.pronouns} onChange={e => setAddForm(p => ({ ...p, pronouns: e.target.value }))} style={S.input}>
+                  <option value="">{`Default: ${defaultPronouns(addForm.gender)}`}</option>
+                  {PRONOUNS.map(x => <option key={x} value={x}>{x}</option>)}
+                </select>
+              </label>
+              <label style={S.fieldWrap}>
                 <span style={S.label}>School year</span>
                 <input value={addForm.school_year} onChange={e => setAddForm(p => ({ ...p, school_year: e.target.value }))} placeholder="e.g. 2025-26" style={S.input} />
               </label>
@@ -1010,6 +1020,14 @@ export default function StudentsClient() {
                       <select value={editForm.gender ?? ''} onChange={e => setEditForm(p => p ? { ...p, gender: e.target.value || null } : p)} style={S.input}>
                         <option value="">— not set —</option>
                         {GENDERS.map(g => <option key={g} value={g}>{cap(g)}</option>)}
+                      </select>
+                    </label>
+                    <label style={S.fieldWrap}>
+                      <span style={S.label}>Pronouns</span>
+                      <select value={editForm.pronouns ?? ''} onChange={e => setEditForm(p => p ? { ...p, pronouns: e.target.value || null } : p)} style={S.input}>
+                        <option value="">{`Default: ${defaultPronouns(editForm.gender)}`}</option>
+                        {PRONOUNS.map(x => <option key={x} value={x}>{x}</option>)}
+                        {editForm.pronouns && !PRONOUNS.includes(editForm.pronouns) && <option value={editForm.pronouns}>{editForm.pronouns}</option>}
                       </select>
                     </label>
                     <label style={S.fieldWrap}>

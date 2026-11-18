@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireApiKey } from '@/lib/require-api-key'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { effectivePronouns } from '@/lib/pronouns'
 
 // GET /api/students?grade_year=11&search=smith
 // GET /api/students?email=first.last@rcseagles.ca
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('students')
-    .select('id,first_name,last_name,email,gender,grade_year,school_year')
+    .select('id,first_name,last_name,email,gender,pronouns,grade_year,school_year')
     .order('last_name')
 
   if (gradeYear) query = query.eq('grade_year', Number(gradeYear))
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     (data ?? []).map((s: {
       id: string; first_name: string; last_name: string
-      email: string | null; gender: string | null
+      email: string | null; gender: string | null; pronouns: string | null
       grade_year: number | null; school_year: string | null
     }) => ({
       id: s.id,
@@ -66,6 +67,8 @@ export async function GET(req: NextRequest) {
       full_name: `${s.first_name} ${s.last_name}`,
       email: s.email,
       gender: s.gender,
+      // Recorded pronouns, else he/him (male), she/her (female), they/them (anything else).
+      pronouns: effectivePronouns(s.pronouns, s.gender),
       grade_year: s.grade_year,
       grade_year_reference: s.school_year,
     }))

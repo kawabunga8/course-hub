@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireApiKey } from '@/lib/require-api-key'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { effectivePronouns } from '@/lib/pronouns'
 
 // GET /api/courses/[id]/roster
 // Returns the student roster for a course.
@@ -48,7 +49,7 @@ export async function GET(
 
   const { data: students, error: studentsError } = await supabase
     .from('students')
-    .select('id,first_name,last_name,email,gender,grade_year,school_year')
+    .select('id,first_name,last_name,email,gender,pronouns,grade_year,school_year')
     .in('id', studentIds)
     .order('last_name')
 
@@ -59,7 +60,7 @@ export async function GET(
   return NextResponse.json(
     (students ?? []).map((s: {
       id: string; first_name: string; last_name: string; email: string | null
-      gender: string | null; grade_year: number | null; school_year: string | null
+      gender: string | null; pronouns: string | null; grade_year: number | null; school_year: string | null
     }) => ({
       id: s.id,
       first_name: s.first_name,
@@ -67,6 +68,8 @@ export async function GET(
       full_name: `${s.first_name} ${s.last_name}`,
       email: s.email,
       gender: s.gender,
+      // Recorded pronouns, else he/him (male), she/her (female), they/them (anything else).
+      pronouns: effectivePronouns(s.pronouns, s.gender),
       grade_year: s.grade_year,
       grade_year_reference: s.school_year,
     }))
